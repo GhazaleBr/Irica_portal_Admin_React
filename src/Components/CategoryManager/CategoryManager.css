@@ -1,0 +1,298 @@
+:root {
+  --primary-color: #CE8B0D;
+  --primary-hover: #b57908;
+  --primary-light: #fff8eb;
+  --primary-border: #f3d79b;
+  --text-dark: #1e2430;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --bg-page: #f8fafc;
+  --bg-card: #ffffff;
+  --danger-color: #ef4444;
+  --font-family: 'IRANSansWeb', 'B Yekan', Tahoma, sans-serif;
+}
+
+.category-page {
+  font-family: var(--font-family);
+  background-color: var(--bg-page);
+  min-height: 100vh;
+  padding: 28px 16px;
+  color: var(--text-dark);
+  box-sizing: border-box;
+}
+
+.category-container {
+  max-width: 1150px;
+  margin: 0 auto;
+}
+
+.category-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  padding: 28px;
+}
+
+.category-header {
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 18px;
+  margin-bottom: 24px;
+}
+
+.category-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--text-dark);
+}
+
+.category-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.category-layout {
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .category-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ستون فرم */
+.form-panel {
+  background-color: #fbfcfe;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 22px;
+  position: sticky;
+  top: 20px;
+}
+
+.panel-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 6px;
+}
+
+.form-input,
+.form-select,
+.form-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background-color: #fff;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(206, 139, 13, 0.15);
+}
+
+.btn-primary {
+  font-family: inherit;
+  background-color: var(--primary-color);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.btn-cancel {
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* پنل درخت دسته‌بندی نامحدود */
+.tree-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border: 2px dashed var(--border-color);
+  border-radius: 14px;
+}
+
+.tree-node-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-node-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background-color: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.tree-node-card:hover {
+  border-color: #cbd5e1;
+  background-color: #fdfaf3;
+}
+
+.node-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.node-arrow-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.node-arrow-btn.open {
+  transform: rotate(90deg);
+}
+
+.node-arrow-placeholder {
+  width: 20px;
+}
+
+.node-text-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.node-title-fa {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-dark);
+}
+
+.node-code {
+  font-size: 11px;
+  color: var(--text-muted);
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.node-title-en {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.node-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.node-badge-count {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+  border: 1px solid var(--primary-border);
+  font-weight: 700;
+  margin-left: 6px;
+}
+
+.btn-icon-action {
+  background: none;
+  border: none;
+  font-size: 13px;
+  padding: 5px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-icon-action:hover {
+  background-color: #f1f5f9;
+  color: var(--text-dark);
+}
+
+.btn-icon-action.delete:hover {
+  background-color: #fee2e2;
+  color: var(--danger-color);
+}
+
+.tree-children-container {
+  display: flex;
+  flex-direction: column;
+  border-right: 2px dashed #f0dab1; /* خط شاخه درختی راست به چپ */
+  margin-right: 14px;
+  padding-right: 12px;
+}
