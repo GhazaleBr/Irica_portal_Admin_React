@@ -48,7 +48,16 @@ const servicesData = [
     desc: 'درج طبقه بندی',
     icon: <SearchCheck size={20} />,
     link: '/createcategory'
+  },
+    {
+    id: 16,
+    category: 'services',
+    title: 'درج بنر',
+    desc: 'درج بنر ویژه خبری',
+    icon: <SearchCheck size={20} />,
+    link: '/createbanner'
   }
+  
 ];
 
 const ITEMS_PER_PAGE = 9;

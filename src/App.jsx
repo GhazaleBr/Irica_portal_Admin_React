@@ -9,6 +9,7 @@ import ContractAddForm from './Components/Contract/ContractAddForm';
 import ContentAddForm from './Components/Content/ContentAddForm';
 import UserProfile from './Components/UserProfile/UserProfile';
 import CategoryManager from './Components/CategoryManager/CategoryManager';
+import BannerCustomizer from './Components/BannerManager/BannerCustomizer';
 import './App.css';
 
 function App() {
@@ -61,6 +62,7 @@ function App() {
             <Route path="/addcontent" element={<ContentAddForm />}/>
             <Route path="/userprofile" element={<UserProfile />}/>
             <Route path="/createcategory" element={<CategoryManager/>}/>
+            <Route path="/createbanner" element={<BannerCustomizer/>}/>
 
             {/* در صورت وارد کردن آدرس اشتباه */}
             <Route path="*" element={<div>صفحه مورد نظر یافت نشد.</div>} />
