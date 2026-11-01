@@ -1,59 +1,10 @@
 import React, { useMemo, useState } from "react";
+import categoryService from "../../services/CategoryService";
 import "./CategoryManager.css";
 
 // ساختار درختی چند سطحی اولیه (تودرتو)
 const INITIAL_CATEGORIES = [
-  {
-    id: "cat-1",
-    nameFa: "رویه واردات و ترخیص قطعی",
-    nameEn: "Import & Final Clearance",
-    code: "IMP-01",
-    descriptionFa: "ضوابط اظهار، ثبت سفارش و ترخیص کالا",
-    children: [
-      {
-        id: "cat-1-1",
-        nameFa: "مواد اولیه و قطعات یدکی",
-        nameEn: "Raw Materials & Spare Parts",
-        code: "IMP-RM",
-        descriptionFa: "",
-        children: [
-          {
-            id: "cat-1-1-1",
-            nameFa: "قطعات خطوط تولید خودرو و نیروگاهی",
-            nameEn: "Automotive & Power Plant Components",
-            code: "IMP-RM-AUTO",
-            descriptionFa: "",
-            children: [],
-          },
-        ],
-      },
-      {
-        id: "cat-1-2",
-        nameFa: "ماشین‌آلات خط تولید",
-        nameEn: "Production Machinery",
-        code: "IMP-MC",
-        descriptionFa: "",
-        children: [],
-      },
-    ],
-  },
-  {
-    id: "cat-2",
-    nameFa: "صادرات و رفع تعهد ارزی",
-    nameEn: "Export & FX Repatriation",
-    code: "EXP-01",
-    descriptionFa: "بخشنامه‌های مربوط به سامانه نیما و تعهدات ارزی",
-    children: [
-      {
-        id: "cat-2-1",
-        nameFa: "صادرات محصولات صنعتی و معدنی",
-        nameEn: "Industrial & Mineral Export",
-        code: "EXP-IND",
-        descriptionFa: "",
-        children: [],
-      },
-    ],
-  },
+
 ];
 
 // کامپوننت کمکی رندر بازگشتی گره‌ها (Recursive Node Component)
@@ -310,65 +261,57 @@ const CategoryManager = ({ onCategoriesChange }) => {
     return null;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log("handleSubmit triggered!");
 
     if (!formData.nameFa.trim()) {
       alert("لطفاً عنوان فارسی را وارد نمایید.");
       return;
     }
 
-    let updated = [...categories];
+    try {
+      // 1. آماده‌سازی Payload با تبدیل parentId به عدد
+      // اگر parentId خالی باشد (شاخه اصلی)، طبق داکیومنت شما 0 می‌فرستیم
+      const payload = {
+        titleFa: formData.nameFa.trim(),
+        titleEn: formData.nameEn.trim(),
+        code: formData.code.trim() || "NEW-CODE",
+        parentId: formData.parentId ? parseInt(formData.parentId, 10) : 0, 
+        sortOrder: 0,
+        isActive: true,
+        typeId: 0,
+        moduleId: 13,
+        provinceId: 0,
+        deactivateAt: new Date().toISOString()
+      };
 
-    if (editingId) {
-      const currentNode = findNode(categories, editingId);
-      if (!currentNode) return;
-
-      // اعتبارسنجی: جلوگیری از اختصاص والد به خود یا فرزندان خود
-      if (formData.parentId === editingId || isDescendant(currentNode, formData.parentId)) {
-        alert("یک طبقه‌بندی نمی‌تواند زیرمجموعه خودش یا زیرشاخه‌های خودش قرار گیرد.");
-        return;
-      }
-
-      // ۱. ابتدا گره فعلی را با مشخصات جدید به‌روزرسانی و از درخت برمی‌داریم
-      const updatedNode = {
-        ...currentNode,
+      // 2. ارسال درخواست به API
+      const response = await categoryService.createCategory(payload);
+      
+      // 3. افزودن به درخت در فرانت‌اند (با استفاده از آیدی برگشتی از سرور)
+      const newNode = {
+        id: response.id, // آیدی واقعی از دیتابیس
         nameFa: formData.nameFa.trim(),
         nameEn: formData.nameEn.trim(),
         code: formData.code.trim(),
         descriptionFa: formData.descriptionFa.trim(),
-      };
-
-      const treeWithoutNode = removeNodeRecursively(categories, editingId);
-
-      // ۲. گره را در والد جدید (یا ریشه) درج می‌کنیم
-      updated = insertNodeRecursively(treeWithoutNode, formData.parentId, updatedNode);
-
-      if (formData.parentId) {
-        setExpandedCats((prev) => ({ ...prev, [formData.parentId]: true }));
-      }
-    } else {
-      // ایجاد گره جدید
-      const newNode = {
-        id: `cat-${Date.now()}`,
-        nameFa: formData.nameFa.trim(),
-        nameEn: formData.nameEn.trim(),
-        code: formData.code.trim() || `CAT-${Math.floor(Math.random() * 9000 + 1000)}`,
-        descriptionFa: formData.descriptionFa.trim(),
         children: [],
       };
 
-      updated = insertNodeRecursively(categories, formData.parentId, newNode);
-
-      if (formData.parentId) {
-        setExpandedCats((prev) => ({ ...prev, [formData.parentId]: true }));
-      }
+      // درج در وضعیت محلی (Local State)
+      const updated = insertNodeRecursively(categories, payload.parentId, newNode);
+      setCategories(updated);
+      
+      if (onCategoriesChange) onCategoriesChange(updated);
+      resetForm();
+      
+    } catch (error) {
+      console.error("خطا در ایجاد دسته‌بندی:", error);
+      alert("خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.");
     }
-
-    setCategories(updated);
-    if (onCategoriesChange) onCategoriesChange(updated);
-    resetForm();
   };
+
 
   return (
     <div className="category-page" dir="rtl">
@@ -377,7 +320,7 @@ const CategoryManager = ({ onCategoriesChange }) => {
           <div className="category-header">
             <h2 className="category-title">مدیریت ساختار درختی طبقه‌بندی و زیرمجموعه‌ها</h2>
             <div className="category-subtitle">
-              امکان ایجاد بی‌نهایت سطح زیردسته (Subcategory) برای محتواها، بخشنامه‌های EPL و قراردادها
+              امکان ایجاد بی‌نهایت سطح زیردسته  برای محتواها
             </div>
           </div>
 
@@ -460,7 +403,7 @@ const CategoryManager = ({ onCategoriesChange }) => {
                     className="form-textarea"
                   />
                 </div>
-
+                
                 <button type="submit" className="btn-primary">
                   {editingId ? "ذخیره تغییرات" : "ثبت و افزودن به درخت"}
                 </button>

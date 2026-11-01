@@ -1,151 +1,59 @@
-.customs-sidebar {
-  width: 240px;
-  min-height: 100vh;
-  background-color: #ffffff;
-  padding: 16px 12px;
-  direction: rtl;
-  font-family: 'IRANSansWeb', 'B Yekan', Tahoma, sans-serif;
-  border-left: 1px solid #edf2f7;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  user-select: none;
+:root {
+  --primary-gold: #ce8b0d;
+  --primary-gold-hover: #b87005;
+  --bg-sidebar: #ce8b0d; /* پس‌زمینه طلایی/کاهی پررنگ‌تر */
+  --bg-hover: #fcf5e5; 
+  --text-main: #334155;
+  --text-muted: #64748b;
+  --border-color: #f7eedb; 
+  --subitem-hover: #faf3e0;
 }
 
-/* آیتم داشبورد خردلی / فعال در تصویر */
-.sidebar-item-dashboard {
-  background: linear-gradient(180deg, #c9800e 0%, #b87005 100%);
-  color: #ffffff !important;
-  border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(184, 112, 5, 0.25);
-  font-weight: 700;
+[data-theme="dark"] {
+  --bg-sidebar: #12100c !important; /* پس‌زمینه تیره با ته¬رنگ کهربایی */
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border-color: #261f0d;
+  --bg-hover: #1f180a;
+  --subitem-hover: #261f0d;
 }
 
-.sidebar-item-dashboard:hover {
-  background: linear-gradient(180deg, #d38712 0%, #be7406 100%) !important;
-}
-
-/* ساختار کلی هر دکمه منو */
-.sidebar-item-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 11px 14px;
-  border: none;
-  background: transparent;
-  color: #334155;
-  font-family: inherit;
-  font-size: 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-}
-
-.sidebar-item-btn:hover {
-  background-color: #f8fafc;
-  color: #0f172a;
-}
-
-/* چینش سمت راست: آیکون + متن */
-.sidebar-item-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.sidebar-item-title {
-  font-weight: 500;
-}
-
-/* آیکون اختصاصی هر منو */
-.sidebar-menu-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-/* فلش باز/بسته شدن زیرمنو در سمت چپ */
-.sidebar-chevron {
-  color: #64748b;
-  transition: transform 0.25s ease;
-}
-
-.sidebar-chevron.open {
-  transform: rotate(180deg);
-}
-
-/* رنگ اختصاصی آیکون‌ها مطابق تصویر */
-.icon-dashboard { color: #ffffff; }
-.icon-services  { color: #475569; }
-.icon-inquiries { color: #0284c7; }
-.icon-notices   { color: #e11d48; }
-.icon-circulars { color: #94a3b8; }
-.icon-regulations { color: #3b82f6; }
-.icon-profile   { color: #7c3aed; }
-.icon-settings  { color: #64748b; }
-
-/* کانتینر زیرمنوها */
-.sidebar-submenu {
-  list-style: none;
-  margin: 0;
-  padding: 4px 34px 6px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sidebar-subitem-btn {
-  width: 100%;
-  text-align: right;
-  padding: 7px 10px;
-  font-size: 13px;
-  color: #64748b;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.sidebar-subitem-btn:hover {
-  background-color: #f1f5f9;
-  color: #1e293b;
-}
 .customs-sidebar {
   width: 240px;
   min-height: calc(100vh - 64px);
-  background-color: var(--bg-sidebar);
+  background-color: var(--bg-sidebar) !important; /* اعمال اجباری پس‌زمینه */
   padding: 16px 12px;
   direction: rtl;
   font-family: 'IRANSansWeb', 'B Yekan', Tahoma, sans-serif;
   border-left: 1px solid var(--border-color);
-  border-right: none;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: all 0.3s ease;
   user-select: none;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* آیتم فعال داشبورد */
+/* آیتم فعال با گرادینت طلایی */
 .sidebar-item-dashboard {
-  background: linear-gradient(180deg, #c9800e 0%, #b87005 100%) !important;
+  background: linear-gradient(180deg, #df991b 0%, var(--primary-gold) 100%) !important;
   color: #ffffff !important;
   border-radius: 10px;
-  box-shadow: 0 4px 10px rgba(184, 112, 5, 0.25);
+  box-shadow: 0 4px 10px rgba(206, 139, 13, 0.3);
   font-weight: 700;
 }
 
 .sidebar-item-dashboard .sidebar-item-title,
-.sidebar-item-dashboard .sidebar-chevron {
+.sidebar-item-dashboard .sidebar-chevron,
+.sidebar-item-dashboard .sidebar-menu-icon {
   color: #ffffff !important;
 }
 
-/* دکمه‌های منو */
+.sidebar-item-dashboard:hover {
+  background: linear-gradient(180deg, #e9a21d 0%, #d8930f 100%) !important;
+}
+
+/* استایل عمومی دکمه‌ها با تم طلایی */
 .sidebar-item-btn {
   width: 100%;
   display: flex;
@@ -159,11 +67,12 @@
   font-size: 14px;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease;
 }
 
 .sidebar-item-btn:hover {
-  background-color: var(--hover-item);
+  background-color: var(--bg-hover);
+  color: var(--primary-gold);
 }
 
 .sidebar-item-content {
@@ -176,11 +85,17 @@
   font-weight: 500;
 }
 
+/* آیکون‌ها */
 .sidebar-menu-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  color: var(--primary-gold);
+}
+
+.sidebar-item-dashboard .sidebar-menu-icon {
+  color: #ffffff !important;
 }
 
 .sidebar-chevron {
@@ -190,21 +105,8 @@
 
 .sidebar-chevron.open {
   transform: rotate(180deg);
+  color: var(--primary-gold);
 }
-
-/* رنگ اختصاصی آیکون‌ها */
-.icon-dashboard { color: #ffffff; }
-.icon-services  { color: #64748b; }
-.icon-inquiries { color: #0284c7; }
-.icon-notices   { color: #e11d48; }
-.icon-circulars { color: #94a3b8; }
-.icon-regulations { color: #3b82f6; }
-.icon-profile   { color: #a855f7; }
-.icon-settings  { color: #64748b; }
-
-/* در دارک‌مود، آیکون‌های تیره کمی روشن‌تر می‌شوند */
-[data-theme="dark"] .icon-services { color: #94a3b8; }
-[data-theme="dark"] .icon-settings { color: #94a3b8; }
 
 /* زیرمنوها */
 .sidebar-submenu {
@@ -232,5 +134,5 @@
 
 .sidebar-subitem-btn:hover {
   background-color: var(--subitem-hover);
-  color: var(--text-main);
+  color: var(--primary-gold);
 }

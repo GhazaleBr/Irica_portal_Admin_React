@@ -1,14 +1,139 @@
 // src/components/AddNewsForm/AddNewsForm.jsx
 import React, { useEffect, useRef, useState } from "react";
+
 import { toast } from "react-toastify";
 import {
   postNews,
   uploadImages,
   assignFeaturedImage,
   assignGalleryImage,
+  getNewsList,
+  uploadMediaImage,
+  assignNewsImage,
+  assignImageToGallery,
+  assignGalleryToNews,
 } from "../../services/newsService";
 import "./AddNewsForm.css";
 
+// ==========================================
+// کامپوننت پاپ‌آپ تمام‌صفحه جستجوی اخبار برای ویرایش
+// ==========================================
+function NewsSearchModal({ show, onHide, onSelectNews }) {
+  const [query, setQuery] = useState("");
+  const [filterType, setFilterType] = useState("title"); // 'title' | 'author'
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+
+    setLoading(true);
+    setSearched(true);
+    try {
+      if (typeof getNewsList === "function") {
+        const response = await getNewsList({ search: query, searchField: filterType });
+        const items = response?.items || response?.data || response || [];
+        setResults(items);
+      } else {
+        // دیتای تستی در صورت عدم دسترسی به سرویس
+        const mockData = [
+          { id: 1, titleFa: "آخرین اخبار گمرک و ترخیص کالا", author: "علی رضایی" },
+          { id: 2, titleFa: "بخشنامه‌های جدید EPL", author: "محمد باقری" },
+          { id: 3, titleFa: "راهنمای ثبت سفارش", author: "علی رضایی" },
+        ];
+        const filtered = mockData.filter((item) => {
+          if (filterType === "title") {
+            return item.titleFa.toLowerCase().includes(query.toLowerCase());
+          } else {
+            return item.author.toLowerCase().includes(query.toLowerCase());
+          }
+        });
+        setResults(filtered);
+      }
+    } catch (error) {
+      console.error("خطا در جستجوی اخبار:", error);
+      toast.error("خطا در جستجوی اخبار");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="nsm-overlay" onClick={onHide}>
+      <div className="nsm-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="nsm-header">
+          <h2 className="nsm-title">جستجو در اخبار جهت ویرایش</h2>
+          <button type="button" className="nsm-close" onClick={onHide}>
+            ×
+          </button>
+        </div>
+
+        <form className="nsm-search-form" onSubmit={handleSearch}>
+          <select
+            className="nsm-select"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+          >
+            <option value="title">عنوان خبر</option>
+            <option value="author">نویسنده</option>
+          </select>
+          <input
+            type="text"
+            className="nsm-input"
+            placeholder={
+              filterType === "title"
+                ? "عنوان خبر را وارد کنید..."
+                : "نام نویسنده را وارد کنید..."
+            }
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button type="submit" className="nsm-btn-search">
+            جستجو
+          </button>
+        </form>
+
+        <div className="nsm-results">
+          {loading && <p className="nsm-status">در حال جستجو...</p>}
+
+          {!loading && searched && results.length === 0 && (
+            <p className="nsm-status nsm-muted">نتیجه‌ای یافت نشد.</p>
+          )}
+
+          {!loading &&
+            results.map((news) => (
+              <button
+                key={news.id}
+                type="button"
+                className="nsm-item"
+                onClick={() => {
+                  onSelectNews(news);
+                  onHide();
+                }}
+              >
+                <span>{news.titleFa || news.title}</span>
+                <span className="nsm-badge">نویسنده: {news.author || "-"}</span>
+              </button>
+            ))}
+        </div>
+
+        <div className="nsm-footer">
+          <button type="button" className="nsm-btn-close" onClick={onHide}>
+            انصراف
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// کامپوننت اصلی فرم
+// ==========================================
 const AddNewsForm = () => {
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
@@ -22,12 +147,14 @@ const AddNewsForm = () => {
     summary: "fa",
     content: "fa",
     caption: "fa",
+    tags: "fa",
   });
 
   // فیلدهای چندزبانه + متادیتاها
   const [formData, setFormData] = useState({
     titleFa: "",
     titleEn: "",
+    code: "",
     summaryFa: "",
     summaryEn: "",
     contentFa: "",
@@ -35,12 +162,30 @@ const AddNewsForm = () => {
     captionFa: "",
     captionEn: "",
     category: "",
-    publishDate: "",
+    publishDate: new Date().toISOString().split("T")[0],
     author: "",
     status: 1,
+    provinceId: 0,
     isFeatured: false,
     isBreaking: false,
+    isAnimated: false,
+    hasSchedule: false,
   });
+
+  // --- وضعیت تگ‌ها ---
+  const [tagsFa, setTagsFa] = useState([]);
+  const [tagsEn, setTagsEn] = useState([]);
+  const [currentTagInputFa, setCurrentTagInputFa] = useState("");
+  const [currentTagInputEn, setCurrentTagInputEn] = useState("");
+
+  // --- وضعیت اخبار مرتبط ---
+  const [relatedNewsQuery, setRelatedNewsQuery] = useState("");
+  const [relatedSearchResults, setRelatedSearchResults] = useState([]);
+  const [selectedRelatedNews, setSelectedRelatedNews] = useState([]);
+  const [isSearchingNews, setIsSearchingNews] = useState(false);
+
+  // --- وضعیت پاپ‌آپ جستجوی ویرایش ---
+  const [isEditSearchOpen, setIsEditSearchOpen] = useState(false);
 
   const [featuredFile, setFeaturedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -68,7 +213,6 @@ const AddNewsForm = () => {
     { id: 3, titleFa: "بایگانی", titleEn: "Archive" },
   ];
 
-  // پاک‌سازی حافظه آبجکت‌های URL پیش‌نمایش فایل‌ها
   useEffect(() => {
     return () => {
       if (imagePreviewRef.current) URL.revokeObjectURL(imagePreviewRef.current);
@@ -90,6 +234,104 @@ const AddNewsForm = () => {
 
   const handleLangToggle = (field, lang) => {
     setActiveLang((prev) => ({ ...prev, [field]: lang }));
+  };
+
+  const handleAddTag = (lang = "fa") => {
+    if (lang === "fa") {
+      const val = currentTagInputFa.trim();
+      if (!val) return;
+      if (tagsFa.includes(val)) {
+        toast.info("این برچسب قبلاً اضافه شده است.");
+        return;
+      }
+      setTagsFa((prev) => [...prev, val]);
+      setCurrentTagInputFa("");
+    } else {
+      const val = currentTagInputEn.trim();
+      if (!val) return;
+      if (tagsEn.includes(val)) {
+        toast.info("Tag already exists.");
+        return;
+      }
+      setTagsEn((prev) => [...prev, val]);
+      setCurrentTagInputEn("");
+    }
+  };
+
+  const handleRemoveTag = (indexToRemove, lang = "fa") => {
+    if (lang === "fa") {
+      setTagsFa((prev) => prev.filter((_, i) => i !== indexToRemove));
+    } else {
+      setTagsEn((prev) => prev.filter((_, i) => i !== indexToRemove));
+    }
+  };
+
+  const handleTagKeyDown = (e, lang) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddTag(lang);
+    }
+  };
+
+  // انتخاب خبر از پاپ‌آپ جستجوی ویرایش جهت بارگذاری در فرم
+  const handleSelectNewsForEdit = (newsItem) => {
+    console.log("خبر انتخاب شده برای ویرایش:", newsItem);
+    // پر کردن فرم با اطلاعات خبر انتخابی (می‌توانید فیلدها را بر اساس ساختار پاسخ API مپ کنید)
+    setFormData((prev) => ({
+      ...prev,
+      titleFa: newsItem.titleFa || newsItem.title || "",
+      titleEn: newsItem.titleEn || "",
+      summaryFa: newsItem.summaryFa || newsItem.summary || "",
+      summaryEn: newsItem.summaryEn || "",
+      contentFa: newsItem.bodyFa || newsItem.content || "",
+      contentEn: newsItem.bodyEn || "",
+      author: newsItem.author || "",
+      category: newsItem.categoryId || newsItem.category || "",
+      status: newsItem.entityStatusId || newsItem.status || 1,
+    }));
+    toast.success("اطلاعات خبر برای ویرایش بارگذاری شد.");
+  };
+
+  const handleSearchRelatedNews = async (e) => {
+    const query = e.target.value;
+    setRelatedNewsQuery(query);
+
+    if (!query.trim() || query.length < 2) {
+      setRelatedSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearchingNews(true);
+      if (typeof getNewsList === "function") {
+        const response = await getNewsList({ search: query, pageSize: 5 });
+        const items = response?.items || response?.data || response || [];
+        setRelatedSearchResults(items);
+      } else {
+        setRelatedSearchResults([
+          { id: 101, title: `خبر مرتبط: ${query} در گمرک`, publishDate: "1403/07/20" },
+          { id: 102, title: `دستورالعمل جامع مرتبط با ${query}`, publishDate: "1403/07/18" },
+        ]);
+      }
+    } catch (err) {
+      console.error("خطا در واکشی اخبار جهت ارتباط:", err);
+    } finally {
+      setIsSearchingNews(false);
+    }
+  };
+
+  const handleSelectRelatedNews = (newsItem) => {
+    if (selectedRelatedNews.some((item) => item.id === newsItem.id)) {
+      toast.info("این خبر قبلاً به عنوان خبر مرتبط انتخاب شده است.");
+      return;
+    }
+    setSelectedRelatedNews((prev) => [...prev, newsItem]);
+    setRelatedNewsQuery("");
+    setRelatedSearchResults([]);
+  };
+
+  const handleRemoveRelatedNews = (idToRemove) => {
+    setSelectedRelatedNews((prev) => prev.filter((item) => item.id !== idToRemove));
   };
 
   const handleImageChange = (e) => {
@@ -173,20 +415,6 @@ const AddNewsForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const extractImageId = (response) => {
-    return (
-      response?.id ??
-      response?.data?.id ??
-      response?.imageId ??
-      response?.data?.imageId ??
-      response?.result?.id ??
-      response?.result?.imageId ??
-      response?.data?.result?.id ??
-      response?.data?.result?.imageId ??
-      null
-    );
-  };
-
   const extractNewsId = (response) => {
     return (
       response?.id ??
@@ -197,21 +425,6 @@ const AddNewsForm = () => {
       response?.data?.result?.id ??
       null
     );
-  };
-
-  const uploadSingleImage = async (file, title, description = "") => {
-    const uploadData = new FormData();
-    uploadData.append("File", file, file.name);
-    uploadData.append("Title", title);
-    uploadData.append("Description", description);
-
-    const response = await uploadImages(uploadData);
-    const imageId = extractImageId(response);
-
-    if (!imageId) {
-      throw new Error("تصویر آپلود شد، اما شناسه آن از سمت سرور بازگردانده نشد.");
-    }
-    return Number(imageId);
   };
 
   const getCurrentTimeString = () => {
@@ -243,6 +456,12 @@ const AddNewsForm = () => {
       isBreaking: false,
     });
 
+    setTagsFa([]);
+    setTagsEn([]);
+    setSelectedRelatedNews([]);
+    setRelatedSearchResults([]);
+    setRelatedNewsQuery("");
+
     setFeaturedFile(null);
     setImagePreview(null);
     setSelectedFileName("");
@@ -265,72 +484,64 @@ const AddNewsForm = () => {
     setIsSubmitting(true);
 
     try {
-      // ۱. آپلود تصویر شاخص
-      const featuredImageId = await uploadSingleImage(
-        featuredFile,
-        formData.titleFa.trim() || formData.titleEn.trim(),
-        formData.captionFa.trim() || formData.captionEn.trim()
-      );
+      const currentFormattedTime = getCurrentTimeString();
 
-      // ۲. آپلود تصاویر گالری
-      const galleryImageIds = [];
-      for (const item of galleryImages) {
-        const gId = await uploadSingleImage(
-          item.file,
-          formData.titleFa.trim() || "Gallery Item",
-          ""
-        );
-        galleryImageIds.push(gId);
-      }
-
-      // ۳. ثبت خبر اصلی
       const newsPayload = {
         title: formData.titleFa.trim(),
-        titleEn: formData.titleEn.trim(),
-        caption: formData.captionFa.trim(),
-        captionEn: formData.captionEn.trim(),
-        summary: formData.summaryFa.trim(),
-        summaryEn: formData.summaryEn.trim(),
-        body: formData.contentFa.trim(),
-        bodyEn: formData.contentEn.trim(),
+        caption: formData.captionFa.trim() || "",
+        code: formData.code.trim() || `NEWS-${Date.now().toString().slice(-6)}`,
+        summaryFa: formData.summaryFa.trim(),
+        summaryEn: formData.summaryEn.trim() || "",
+        bodyFa: formData.contentFa.trim(),
+        bodyEn: formData.contentEn.trim() || "",
         publishDate: formData.publishDate,
-        publishTime: getCurrentTimeString(),
-        author: formData.author.trim(),
-        entityStatusId: Number(formData.status),
-        isFeatured: Boolean(formData.isFeatured),
+        publishTime: currentFormattedTime,
+        entityStatusId: Number(formData.status) || 1,
+        hasSchedule: Boolean(formData.hasSchedule),
+        scheduleStartDate: formData.publishDate,
+        scheduleStartTime: currentFormattedTime,
+        scheduleEndDate: formData.publishDate,
+        scheduleEndTime: currentFormattedTime,
         isBreaking: Boolean(formData.isBreaking),
-        categoryIds: [Number(formData.category)],
-        imageIds: [featuredImageId, ...galleryImageIds],
+        isAnimated: Boolean(formData.isAnimated),
+        isFeatured: Boolean(formData.isFeatured),
+        provinceId: Number(formData.provinceId) || 0,
+        deactivateAt: "2026-10-19T04:33:00.066Z"
       };
 
       const newsResponse = await postNews(newsPayload);
       const newsId = extractNewsId(newsResponse);
 
-      // ۴. انتساب تصویر شاخص (در صورت نیاز بک‌اند)
-      if (newsId) {
-        await assignFeaturedImage({
-          newsId: newsId,
-          imageId: featuredImageId,
-          isFeatured: true,
-          caption: formData.captionFa.trim(),
-          captionEn: formData.captionEn.trim(),
-        }).catch((err) => console.warn("انتساب تصویر شاخص انجام نشد:", err));
+      if (!newsId) {
+        throw new Error("خبر در پایگاه داده ایجاد شد، اما شناسه آن (News ID) دریافت نشد.");
       }
 
-      // ۵. انتساب تصاویر به گالری خبر
-      if (galleryImageIds.length > 0 && newsId) {
-        await assignGalleryImage({
-          newsId: newsId,
-          imageIds: galleryImageIds,
-        }).catch((err) => console.warn("انتساب گالری انجام نشد:", err));
+      if (featuredFile) {
+        const uploadResponse = await uploadMediaImage(
+          featuredFile,
+          formData.titleFa.trim() || "عنوان تصویر",
+          "news"
+        );
+        const imageId = uploadResponse?.id || uploadResponse?.data?.id;
+
+        if (imageId) {
+          await assignNewsImage({
+            newsId,
+            imageId,
+            sortOrder: 0,
+            typeId: 2,
+            languageId: 0,
+          });
+        }
       }
 
-      toast.success("خبر با موفقیت ثبت شد.");
+      toast.success("خبر و کلیه مستندات تصویری با موفقیت ثبت شد.");
       handleClearForm();
     } catch (error) {
       console.error("خطای ثبت خبر:", error);
       const resMsg =
         error?.response?.data?.message ||
+        error?.response?.data?.title ||
         error?.response?.data?.error ||
         error?.message ||
         "خطا در ثبت خبر.";
@@ -340,7 +551,6 @@ const AddNewsForm = () => {
     }
   };
 
-  // رادیوباتن‌های تعویض زبان
   const renderLanguageSwitch = (fieldKey) => (
     <div className="lang-radio-group">
       <label className={`lang-radio-pill ${activeLang[fieldKey] === "fa" ? "active" : ""}`}>
@@ -371,12 +581,11 @@ const AddNewsForm = () => {
   return (
     <div className="add-news-page" dir="rtl">
       <div className="add-news-container">
-        {/* هدر صفحه */}
         <header className="add-news-header">
           <div>
             <h1 className="page-title">افزودن و ویرایش خبر جدید</h1>
             <p className="page-subtitle">
-              سیستم مدیریت اخبار دوزبانه (فارسی / انگلیسی) با قابلیت درج گالری و پیش‌نمایش زنده
+              سیستم مدیریت اخبار دوزبانه (فارسی / انگلیسی) با قابلیت برچسب‌گذاری، اخبار مرتبط و گالری
             </p>
           </div>
           <div className="header-badge">پنل اخبار و اطلاع‌رسانی</div>
@@ -384,14 +593,12 @@ const AddNewsForm = () => {
 
         <form onSubmit={handleSubmit} className="news-form" noValidate>
           <div className="form-grid">
-            {/* ستون اصلی فرم */}
             <div className="main-column">
               <div className="panel-box">
                 <div className="panel-box-header">
                   <h3>محتوای خبر</h3>
                 </div>
 
-                {/* ۱. عنوان خبر */}
                 <div className="form-group">
                   <div className="field-header-row">
                     <label className="form-label">
@@ -426,7 +633,6 @@ const AddNewsForm = () => {
                   )}
                 </div>
 
-                {/* دسته‌بندی و نویسنده */}
                 <div className="two-col">
                   <div className="form-group">
                     <label className="form-label">دسته‌بندی</label>
@@ -464,7 +670,6 @@ const AddNewsForm = () => {
                   </div>
                 </div>
 
-                {/* تاریخ و وضعیت انتشار */}
                 <div className="two-col">
                   <div className="form-group">
                     <label className="form-label">تاریخ انتشار</label>
@@ -497,7 +702,6 @@ const AddNewsForm = () => {
                   </div>
                 </div>
 
-                {/* چک‌باکس‌های ویژه و فوری */}
                 <div className="checkbox-row">
                   <label className="custom-check-label">
                     <input
@@ -520,7 +724,6 @@ const AddNewsForm = () => {
                   </label>
                 </div>
 
-                {/* ۲. خلاصه خبر */}
                 <div className="form-group">
                   <div className="field-header-row">
                     <label className="form-label">
@@ -555,7 +758,6 @@ const AddNewsForm = () => {
                   )}
                 </div>
 
-                {/* ۳. متن کامل خبر */}
                 <div className="form-group">
                   <div className="field-header-row">
                     <label className="form-label">
@@ -589,12 +791,142 @@ const AddNewsForm = () => {
                     <span className="error-text">{errors.contentFa}</span>
                   )}
                 </div>
+
+                <div className="form-group">
+                  <div className="field-header-row">
+                    <label className="form-label">
+                      برچسب‌های خبر {activeLang.tags === "en" ? "(Tags - English)" : "(فارسی)"}
+                    </label>
+                    {renderLanguageSwitch("tags")}
+                  </div>
+
+                  {activeLang.tags === "fa" ? (
+                    <div className="tags-input-container">
+                      <div className="tags-input-row">
+                        <input
+                          type="text"
+                          dir="rtl"
+                          className="form-input"
+                          placeholder="برچسب را تایپ کنید و Enter بزنید..."
+                          value={currentTagInputFa}
+                          onChange={(e) => setCurrentTagInputFa(e.target.value)}
+                          onKeyDown={(e) => handleTagKeyDown(e, "fa")}
+                        />
+                        <button
+                          type="button"
+                          className="btn-add-tag"
+                          onClick={() => handleAddTag("fa")}
+                        >
+                          افزودن برچسب
+                        </button>
+                      </div>
+                      <div className="tags-list">
+                        {tagsFa.map((tag, idx) => (
+                          <span key={idx} className="tag-chip">
+                            #{tag}
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={() => handleRemoveTag(idx, "fa")}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="tags-input-container" dir="ltr">
+                      <div className="tags-input-row">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          className="form-input ltr-input"
+                          placeholder="Type tag and press Enter..."
+                          value={currentTagInputEn}
+                          onChange={(e) => setCurrentTagInputEn(e.target.value)}
+                          onKeyDown={(e) => handleTagKeyDown(e, "en")}
+                        />
+                        <button
+                          type="button"
+                          className="btn-add-tag"
+                          onClick={() => handleAddTag("en")}
+                        >
+                          Add Tag
+                        </button>
+                      </div>
+                      <div className="tags-list">
+                        {tagsEn.map((tag, idx) => (
+                          <span key={idx} className="tag-chip">
+                            #{tag}
+                            <button
+                              type="button"
+                              className="tag-remove-btn"
+                              onClick={() => handleRemoveTag(idx, "en")}
+                            >
+                              &times;
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group related-news-section">
+                  <label className="form-label">انتخاب و اتصال اخبار مرتبط</label>
+                  <div className="related-search-box">
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="عنوان خبر مورد نظر را جهت جستجو وارد نمایید..."
+                      value={relatedNewsQuery}
+                      onChange={handleSearchRelatedNews}
+                    />
+                    {isSearchingNews && <div className="searching-spinner">در حال جستجو...</div>}
+
+                    {relatedSearchResults.length > 0 && (
+                      <ul className="related-dropdown-results">
+                        {relatedSearchResults.map((item) => (
+                          <li
+                            key={item.id}
+                            onClick={() => handleSelectRelatedNews(item)}
+                            className="related-dropdown-item"
+                          >
+                            <span className="related-item-title">{item.title || item.titleFa}</span>
+                            {item.publishDate && (
+                              <span className="related-item-date">{item.publishDate}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  <div className="selected-related-list">
+                    {selectedRelatedNews.length === 0 ? (
+                      <p className="no-related-text">هیچ خبر مرتبطی انتخاب نشده است.</p>
+                    ) : (
+                      selectedRelatedNews.map((news) => (
+                        <div key={news.id} className="selected-related-card">
+                          <span className="related-card-title">{news.title || news.titleFa}</span>
+                          <button
+                            type="button"
+                            className="related-remove-btn"
+                            onClick={() => handleRemoveRelatedNews(news.id)}
+                            title="حذف خبر مرتبط"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* ستون کناری رسانه و اقدامات */}
             <div className="side-column">
-              {/* بخش تصویر شاخص */}
               <div className="panel-box">
                 <div className="panel-box-header">
                   <h3>تصویر شاخص</h3>
@@ -634,7 +966,6 @@ const AddNewsForm = () => {
                   <span className="error-text">{errors.featuredImage}</span>
                 )}
 
-                {/* کپشن تصویر شاخص */}
                 <div className="form-group mt-3">
                   <div className="field-header-row">
                     <label className="form-label">کپشن تصویر</label>
@@ -665,7 +996,6 @@ const AddNewsForm = () => {
                 </div>
               </div>
 
-              {/* بخش گالری */}
               <div className="panel-box">
                 <div className="panel-box-header">
                   <h3>گالری تصاویر ({galleryImages.length}/3)</h3>
@@ -715,19 +1045,27 @@ const AddNewsForm = () => {
                 </div>
               </div>
 
-              {/* دکمه‌های عملیات */}
               <div className="panel-box">
                 <div className="panel-box-header">
                   <h3>عملیات</h3>
                 </div>
 
                 <div className="action-buttons">
+                  {/* دکمه ویرایش که پاپ‌آپ جستجو را باز می‌کند */}
+                  <button
+                    type="button"
+                    className="btn btn-preview"
+                    onClick={() => setIsEditSearchOpen(true)}
+                  >
+                    ویرایش
+                  </button>
+
                   <button
                     type="button"
                     className="btn btn-preview"
                     onClick={() => setIsPreviewOpen(true)}
                   >
-                    پیش‌نمایش دو زبانه
+                    پیش‌نمایش
                   </button>
 
                   <button
@@ -751,6 +1089,13 @@ const AddNewsForm = () => {
             </div>
           </div>
         </form>
+
+        {/* پاپ‌آپ تمام‌صفحه جستجوی اخبار جهت ویرایش */}
+        <NewsSearchModal
+          show={isEditSearchOpen}
+          onHide={() => setIsEditSearchOpen(false)}
+          onSelectNews={handleSelectNewsForEdit}
+        />
 
         {/* مودال پیش‌نمایش دو زبانه */}
         {isPreviewOpen && (
@@ -864,6 +1209,31 @@ const AddNewsForm = () => {
                         ? formData.contentFa || "متن کامل فارسی وارد نشده است."
                         : formData.contentEn || "No English content provided."}
                     </div>
+
+                    {((previewTabLang === "fa" && tagsFa.length > 0) ||
+                      (previewTabLang === "en" && tagsEn.length > 0)) && (
+                      <div className="preview-tags-section">
+                        <h4>{previewTabLang === "fa" ? "برچسب‌ها:" : "Tags:"}</h4>
+                        <div className="preview-tags-list">
+                          {(previewTabLang === "fa" ? tagsFa : tagsEn).map((t, i) => (
+                            <span key={i} className="preview-tag-item">
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedRelatedNews.length > 0 && (
+                      <div className="preview-related-section">
+                        <h4>{previewTabLang === "fa" ? "اخبار مرتبط:" : "Related News:"}</h4>
+                        <ul className="preview-related-items">
+                          {selectedRelatedNews.map((rn) => (
+                            <li key={rn.id}>{rn.title || rn.titleFa}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </article>
                 </div>
 

@@ -1,626 +1,671 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
+import { toast } from "react-toastify";
+import { uploadDirectiveMedia, postDirective, assignFileToDirective } from "../../services/LawsService";
 import "./DirectiveAddForm.css";
 
 const MAX_FILE_SIZE_MB = 20;
 const ALLOWED_EXTENSIONS = ["pdf", "doc", "docx", "xls", "xlsx", "zip", "rar", "jpg", "jpeg", "png"];
 
+// لیست استان‌های ایران با نام مستقیم
+const IRAN_PROVINCES = [
+  { nameFa: "آذربایجان شرقی", nameEn: "East Azerbaijan" },
+  { nameFa: "آذربایجان غربی", nameEn: "West Azerbaijan" },
+  { nameFa: "اردبیل", nameEn: "Ardabil" },
+  { nameFa: "اصفهان", nameEn: "Isfahan" },
+  { nameFa: "البرز", nameEn: "Alborz" },
+  { nameFa: "ایلام", nameEn: "Ilam" },
+  { nameFa: "بوشهر", nameEn: "Bushehr" },
+  { nameFa: "تهران", nameEn: "Tehran" },
+  { nameFa: "چهارمحال و بختیاری", nameEn: "Chaharmahal and Bakhtiari" },
+  { nameFa: "خراسان جنوبی", nameEn: "South Khorasan" },
+  { nameFa: "خراسان رضوی", nameEn: "Razavi Khorasan" },
+  { nameFa: "خراسان شمالی", nameEn: "North Khorasan" },
+  { nameFa: "خوزستان", nameEn: "Khuzestan" },
+  { nameFa: "زنجان", nameEn: "Zanjan" },
+  { nameFa: "سمنان", nameEn: "Semnan" },
+  { nameFa: "سیستان و بلوچستان", nameEn: "Sistan and Baluchestan" },
+  { nameFa: "فارس", nameEn: "Fars" },
+  { nameFa: "قزوین", nameEn: "Qazvin" },
+  { nameFa: "قم", nameEn: "Qom" },
+  { nameFa: "کردستان", nameEn: "Kurdistan" },
+  { nameFa: "کرمان", nameEn: "Kerman" },
+  { nameFa: "کرمانشاه", nameEn: "Kermanshah" },
+  { nameFa: "کهگیلویه و بویراحمد", nameEn: "Kohgiluyeh and Boyer-Ahmad" },
+  { nameFa: "گلستان", nameEn: "Golestan" },
+  { nameFa: "گیلان", nameEn: "Gilan" },
+  { nameFa: "لرستان", nameEn: "Lorestan" },
+  { nameFa: "مازندران", nameEn: "Mazandaran" },
+  { nameFa: "مرکزی", nameEn: "Markazi" },
+  { nameFa: "هرمزگان", nameEn: "Hormozgan" },
+  { nameFa: "همدان", nameEn: "Hamedan" },
+  { nameFa: "یزد", nameEn: "Yazd" }
+];
+
+const initialFormData = {
+  titleFa: "",
+  titleEn: "",
+  entityStatusId: 1,
+  issuingAuthority: "",
+  directiveNo: "", // مپ می‌شود به فیلد number در DTO
+  approvalDate: "",
+  significationDate: "",
+  validityDate: "",
+  summaryFa: "",
+  summaryEn: "",
+  bodyFa: "",
+  bodyEn: "",
+  keywordsFa: [],
+  keywordsEn: [],
+  province: "", // ذخیره مستقیم نام استان
+  attachments: [], // [{ id, file, name, size, ext, titleFa, titleEn, description, languageId, sortOrder }]
+};
+
 const DirectiveAddForm = ({ onSubmit }) => {
   const fileInputRef = useRef(null);
 
-  const [data, setData] = useState({
-    titleFa: "",
-    titleEn: "",
-    directiveNo: "",
-    approvalDate: "",
-    summaryFa: "",
-    summaryEn: "",
-    bodyFa: "",
-    bodyEn: "",
-    keywordsFa: [],
-    keywordsEn: [],
-    attachments: [], // [{ id, file, name, size, ext, titleFa, titleEn }]
-  });
-
-  const [keywordInput, setKeywordInput] = useState({ fa: "", en: "" });
-  const [isDragging, setIsDragging] = useState(false);
+  const [data, setData] = useState(initialFormData);
+  const [activeLangTab, setActiveLangTab] = useState("fa"); // 'fa' | 'en'
+  const [previewLang, setPreviewLang] = useState("fa"); // 'fa' | 'en'
+  const [keywordInput, setKeywordInput] = useState("");
   const [errors, setErrors] = useState({});
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewLang, setPreviewLang] = useState("fa");
-  const [activeLang, setActiveLang] = useState({
-    title: "fa",
-    summary: "fa",
-    body: "fa",
-    keywords: "fa",
-  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
+  // وضعیت‌های ارسال API
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
 
-  const handleLangToggle = (fieldKey, lang) => {
-    setActiveLang((prev) => ({ ...prev, [fieldKey]: lang }));
-  };
-
-  /* --- مدیریت کلمات کلیدی --- */
-  const normalizeKeyword = (text) =>
-    text
-      .replace(/\s+/g, " ")
-      .replace(/[،,]+/g, "،")
-      .trim();
-
-  const addKeyword = (lang) => {
-    const raw = keywordInput[lang];
-    const value = normalizeKeyword(raw);
-    if (!value) return;
-
-    const key = lang === "fa" ? "keywordsFa" : "keywordsEn";
-    const parts = value
-      .split(/[,،]/g)
-      .map((item) => normalizeKeyword(item))
-      .filter(Boolean);
-
-    setData((prev) => {
-      const existing = new Set(prev[key].map((k) => k.toLowerCase()));
-      const merged = [...prev[key]];
-
-      parts.forEach((token) => {
-        if (!existing.has(token.toLowerCase())) {
-          merged.push(token);
-        }
+  const handleInputChange = (field, value) => {
+    setData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
       });
-
-      return { ...prev, [key]: merged };
-    });
-
-    setKeywordInput((prev) => ({ ...prev, [lang]: "" }));
-  };
-
-  const removeKeyword = (lang, indexToRemove) => {
-    const key = lang === "fa" ? "keywordsFa" : "keywordsEn";
-    setData((prev) => ({
-      ...prev,
-      [key]: prev[key].filter((_, i) => i !== indexToRemove),
-    }));
-  };
-
-  const handleKeywordKeyDown = (lang, e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addKeyword(lang);
     }
   };
 
-  /* --- مدیریت فایل‌های پیوست --- */
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return `${bytes} B`;
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
-    return `${(kb / 1024).toFixed(2)} MB`;
+  // افزودن کلمه کلیدی با دکمه یا کلید اینتر
+  const handleAddKeyword = () => {
+    const val = keywordInput.trim().replace(/^,+|,+$/g, "");
+    if (!val) return;
+
+    if (activeLangTab === "fa") {
+      if (!data.keywordsFa.includes(val)) {
+        setData((prev) => ({ ...prev, keywordsFa: [...prev.keywordsFa, val] }));
+      }
+    } else {
+      if (!data.keywordsEn.includes(val)) {
+        setData((prev) => ({ ...prev, keywordsEn: [...prev.keywordsEn, val] }));
+      }
+    }
+    setKeywordInput("");
   };
 
-  const handleFilesSelected = (fileList) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
+  const handleRemoveKeyword = (tag, lang) => {
+    if (lang === "fa") {
+      setData((prev) => ({ ...prev, keywordsFa: prev.keywordsFa.filter((k) => k !== tag) }));
+    } else {
+      setData((prev) => ({ ...prev, keywordsEn: prev.keywordsEn.filter((k) => k !== tag) }));
+    }
+  };
 
-    let fileError = "";
-    const validNewItems = [];
+  // فایل‌ها و آپلود
+  const handleFilesAdded = (filesList) => {
+    const files = Array.from(filesList);
+    const newAttachments = [];
+    const errMessages = [];
 
     files.forEach((file) => {
       const ext = (file.name.split(".").pop() || "").toLowerCase();
-      const sizeMb = file.size / (1024 * 1024);
+      const sizeMB = file.size / (1024 * 1024);
 
       if (!ALLOWED_EXTENSIONS.includes(ext)) {
-        fileError = `فرمت فایل "${file.name}" مجاز نیست.`;
+        errMessages.push(`پسوند «${ext}» در فایل «${file.name}» غیرمجاز است.`);
+        return;
+      }
+      if (sizeMB > MAX_FILE_SIZE_MB) {
+        errMessages.push(`حجم فایل «${file.name}» بیش از حد مجاز (${MAX_FILE_SIZE_MB}MB) است.`);
         return;
       }
 
-      if (sizeMb > MAX_FILE_SIZE_MB) {
-        fileError = `حجم فایل "${file.name}" بیش از ${MAX_FILE_SIZE_MB} مگابایت است.`;
-        return;
-      }
-
-      validNewItems.push({
-        id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      newAttachments.push({
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         file,
         name: file.name,
         size: file.size,
         ext,
-        titleFa: "",
+        titleFa: file.name.substring(0, file.name.lastIndexOf(".")) || file.name,
         titleEn: "",
+        description: "",
+        languageId: 0,
+        sortOrder: data.attachments.length + newAttachments.length,
       });
     });
 
-    setErrors((prev) => ({ ...prev, attachments: fileError }));
+    if (errMessages.length > 0) {
+      toast.error(errMessages.join("\n"));
+    }
 
-    if (validNewItems.length > 0) {
+    if (newAttachments.length > 0) {
       setData((prev) => ({
         ...prev,
-        attachments: [...prev.attachments, ...validNewItems],
+        attachments: [...prev.attachments, ...newAttachments],
       }));
     }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   };
 
-  const handleAttachmentCaptionChange = (id, field, value) => {
+  const handleAttachmentChange = (id, field, value) => {
     setData((prev) => ({
       ...prev,
-      attachments: prev.attachments.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      ),
+      attachments: prev.attachments.map((att) => (att.id === id ? { ...att, [field]: value } : att)),
     }));
   };
 
-  const removeAttachment = (id) => {
+  const handleRemoveAttachment = (id) => {
     setData((prev) => ({
       ...prev,
-      attachments: prev.attachments.filter((item) => item.id !== id),
+      attachments: prev.attachments.filter((att) => att.id !== id),
     }));
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    handleFilesSelected(e.dataTransfer.files);
-  };
-
-  /* --- اعتبارسنجی و ساخت داده نهایی --- */
-  const validate = () => {
+  // اعتبارسنجی
+  const validateForm = () => {
     const newErrors = {};
     if (!data.titleFa.trim()) newErrors.titleFa = "عنوان فارسی بخشنامه الزامی است.";
     if (!data.directiveNo.trim()) newErrors.directiveNo = "شماره بخشنامه الزامی است.";
-    if (!data.approvalDate.trim()) newErrors.approvalDate = "تاریخ تصویب الزامی است.";
-    if (!data.summaryFa.trim()) newErrors.summaryFa = "خلاصه فارسی الزامی است.";
-    if (!data.bodyFa.trim()) newErrors.bodyFa = "متن فارسی بخشنامه الزامی است.";
+    if (!data.issuingAuthority.trim()) newErrors.issuingAuthority = "مرجع صادرکننده الزامی است.";
+    if (!data.approvalDate) newErrors.approvalDate = "تاریخ تصویب الزامی است.";
+    if (!data.significationDate) newErrors.significationDate = "تاریخ ابلاغ الزامی است.";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const payload = useMemo(
-    () => ({
-      titleFa: data.titleFa.trim(),
-      titleEn: data.titleEn.trim(),
-      directiveNo: data.directiveNo.trim(),
-      approvalDate: data.approvalDate,
-      summaryFa: data.summaryFa.trim(),
-      summaryEn: data.summaryEn.trim(),
-      bodyFa: data.bodyFa.trim(),
-      bodyEn: data.bodyEn.trim(),
-      keywordsFa: data.keywordsFa,
-      keywordsEn: data.keywordsEn,
-      attachments: data.attachments.map((att) => ({
-        file: att.file,
-        name: att.name,
-        size: att.size,
-        titleFa: att.titleFa.trim() || att.name,
-        titleEn: att.titleEn.trim(),
-      })),
-    }),
-    [data]
-  );
-
-  const buildFormData = () => {
-    const formData = new FormData();
-    formData.append("titleFa", payload.titleFa);
-    formData.append("titleEn", payload.titleEn);
-    formData.append("directiveNo", payload.directiveNo);
-    formData.append("approvalDate", payload.approvalDate);
-    formData.append("summaryFa", payload.summaryFa);
-    formData.append("summaryEn", payload.summaryEn);
-    formData.append("bodyFa", payload.bodyFa);
-    formData.append("bodyEn", payload.bodyEn);
-    formData.append("keywordsFa", JSON.stringify(payload.keywordsFa));
-    formData.append("keywordsEn", JSON.stringify(payload.keywordsEn));
-
-    payload.attachments.forEach((att, idx) => {
-      formData.append("files", att.file);
-      formData.append(
-        `attachmentsMeta[${idx}]`,
-        JSON.stringify({
-          name: att.name,
-          titleFa: att.titleFa,
-          titleEn: att.titleEn,
-        })
-      );
-    });
-
-    return formData;
-  };
-
+  // ارسال داده‌ها به API
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    if (!validateForm()) {
+      toast.warn("لطفاً اطلاعات الزامی را تکمیل کنید.");
+      return;
+    }
 
-    const formData = buildFormData();
+    setIsSubmitting(true);
+    setStatusMessage("");
 
-    if (typeof onSubmit === "function") {
-      await onSubmit(payload, formData);
-    } else {
-      console.log("Directive Payload Submitted:", payload);
+    try {
+      // مرحله اول: آپلود تمامی پیوست‌ها در مدیا سرور
+      const uploadedResults = [];
+      const totalAtts = data.attachments.length;
+
+      for (let i = 0; i < totalAtts; i++) {
+        const att = data.attachments[i];
+        setStatusMessage(`در حال آپلود فایل پیوست (${i + 1} از ${totalAtts}): ${att.name}`);
+
+        const uploadRes = await uploadDirectiveMedia(
+          att.file,
+          att.titleFa || att.name,
+          att.description || "",
+          "law"
+        );
+
+        const fileId = uploadRes?.fileId ?? uploadRes?.id ?? uploadRes?.data?.id ?? uploadRes?.data?.fileId;
+        if (!fileId) {
+          throw new Error(`شناسه فایل برای «${att.name}» از سرور بازگردانده نشد.`);
+        }
+
+        uploadedResults.push({
+          fileId: Number(fileId),
+          sortOrder: att.sortOrder ?? i,
+          languageId: Number(att.languageId) || 0,
+        });
+      }
+
+      // مرحله دوم: ایجاد بخشنامه / قانون با ارسال زمان جاری برای deactivateAt
+      setStatusMessage("در حال ثبت اطلاعات بخشنامه...");
+      const payload = {
+        deactivateAt: new Date().toISOString(), // زمان جاری سرور ارسال می‌شود
+        titleFa: data.titleFa.trim(),
+        titleEn: data.titleEn.trim(),
+        entityStatusId: Number(data.entityStatusId) || 1,
+        issuingAuthority: data.issuingAuthority.trim(),
+        number: data.directiveNo.trim(),
+        approvalDate: data.approvalDate || null,
+        significationDate: data.significationDate || null,
+        validityDate: data.validityDate || null,
+        summaryFa: data.summaryFa.trim(),
+        summaryEn: data.summaryEn.trim(),
+        bodyFa: data.bodyFa.trim(),
+        bodyEn: data.bodyEn.trim(),
+        keyWordsFa: data.keywordsFa.join(","),
+        keyWordsEn: data.keywordsEn.join(","),
+        province: data.province ? data.province.trim() : null, // ارسال نام مستقیم استان
+      };
+
+      const directiveRes = await postDirective(payload);
+      const lawId = directiveRes?.lawId ?? directiveRes?.id ?? directiveRes?.data?.lawId ?? directiveRes?.data?.id;
+
+      if (!lawId) {
+        throw new Error("شناسه بخشنامه (lawId) در پاسخ سرور یافت نشد.");
+      }
+
+      // مرحله سوم: انتساب فایل‌ها به بخشنامه ثبت‌شده
+      if (uploadedResults.length > 0) {
+        setStatusMessage("در حال انتساب فایل‌های پیوست به بخشنامه...");
+        for (let j = 0; j < uploadedResults.length; j++) {
+          const item = uploadedResults[j];
+          await assignFileToDirective({
+            lawId: String(lawId),
+            fileId: item.fileId,
+            sortOrder: item.sortOrder,
+            languageId: item.languageId,
+          });
+        }
+      }
+
+      setStatusMessage("عملیات با موفقیت پایان یافت.");
+      toast.success("بخشنامه و تمامی پیوست‌های آن با موفقیت ثبت شدند.");
+
+      if (onSubmit) {
+        onSubmit({ success: true, lawId, payload });
+      }
+
+      setData(initialFormData);
+    } catch (err) {
+      console.error(err);
+      const msg = err?.response?.data?.message || err?.message || "خطایی در ثبت بخشنامه رخ داد.";
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+      setStatusMessage("");
     }
   };
 
   const handleClear = () => {
-    setData({
-      titleFa: "",
-      titleEn: "",
-      directiveNo: "",
-      approvalDate: "",
-      summaryFa: "",
-      summaryEn: "",
-      bodyFa: "",
-      bodyEn: "",
-      keywordsFa: [],
-      keywordsEn: [],
-      attachments: [],
-    });
-    setKeywordInput({ fa: "", en: "" });
-    setErrors({});
-    setActiveLang({ title: "fa", summary: "fa", body: "fa", keywords: "fa" });
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (window.confirm("آیا از پاک کردن کامل اطلاعات فرم اطمینان دارید؟")) {
+      setData(initialFormData);
+      setErrors({});
+    }
   };
 
-  const renderLangSwitcher = (fieldKey) => (
-    <div className="lang-switcher">
-      <button
-        type="button"
-        className={`lang-btn ${activeLang[fieldKey] === "fa" ? "active" : ""}`}
-        onClick={() => handleLangToggle(fieldKey, "fa")}
-      >
-        فارسی
-      </button>
-      <button
-        type="button"
-        className={`lang-btn ${activeLang[fieldKey] === "en" ? "active" : ""}`}
-        onClick={() => handleLangToggle(fieldKey, "en")}
-      >
-        EN
-      </button>
-    </div>
-  );
+  const currentKeywords = activeLangTab === "fa" ? data.keywordsFa : data.keywordsEn;
 
   return (
-    <div className="directive-page" dir="rtl">
+    <div className="directive-page">
       <div className="directive-card">
-        {/* Header */}
-        <header className="directive-header">
+        {/* هدر کارت */}
+        <div className="directive-header">
           <div>
-            <h1 className="directive-title">افزودن بخشنامه جدید</h1>
+            <h1 className="directive-title">ایجاد بخشنامه / مصوبه جدید</h1>
             <p className="directive-subtitle">
-              ورود اطلاعات دوزبانه، تاریخ، شماره و پیوست‌های مرتبط با بخشنامه
+              اطلاعات، تاریخ‌ها، متن و فایل‌های پیوست بخشنامه را وارد کرده و ثبت نهایی نمایید.
             </p>
           </div>
-          <span className="directive-badge">بخشنامه‌ها</span>
-        </header>
+          <span className="directive-badge">سامانه بخشنامه‌ها</span>
+        </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="directive-form" noValidate>
-          {/* شماره بخشنامه و تاریخ تصویب */}
+        <form className="directive-form" onSubmit={handleSubmit}>
+          {/* ردیف شماره و مرجع صادرکننده */}
           <div className="form-row-2">
             <div className="form-group">
-              <label className="field-label">شماره بخشنامه</label>
+              <div className="field-label-row">
+                <label className="field-label">شماره بخشنامه *</label>
+              </div>
               <input
                 type="text"
-                name="directiveNo"
-                value={data.directiveNo}
-                onChange={handleChange}
-                placeholder="مثال: ۱۴۰۳/۱۸۴۷۹"
+                dir="ltr"
                 className={`form-input ${errors.directiveNo ? "input-has-error" : ""}`}
+                placeholder="مثال: 1403/123456"
+                value={data.directiveNo}
+                onChange={(e) => handleInputChange("directiveNo", e.target.value)}
+                disabled={isSubmitting}
               />
-              {errors.directiveNo && (
-                <div className="error-message">{errors.directiveNo}</div>
-              )}
+              {errors.directiveNo && <div className="error-message">{errors.directiveNo}</div>}
             </div>
 
             <div className="form-group">
-              <label className="field-label">تاریخ تصویب</label>
+              <div className="field-label-row">
+                <label className="field-label">مرجع صادرکننده *</label>
+              </div>
               <input
-                type="date"
-                name="approvalDate"
-                value={data.approvalDate}
-                onChange={handleChange}
-                className={`form-input ${errors.approvalDate ? "input-has-error" : ""}`}
+                type="text"
+                className={`form-input ${errors.issuingAuthority ? "input-has-error" : ""}`}
+                placeholder="مثال: گمرک جمهوری اسلامی ایران"
+                value={data.issuingAuthority}
+                onChange={(e) => handleInputChange("issuingAuthority", e.target.value)}
+                disabled={isSubmitting}
               />
-              {errors.approvalDate && (
-                <div className="error-message">{errors.approvalDate}</div>
-              )}
+              {errors.issuingAuthority && <div className="error-message">{errors.issuingAuthority}</div>}
             </div>
           </div>
 
-          {/* عنوان بخشنامه */}
+          {/* ردیف تاریخ تصویب و تاریخ ابلاغ */}
+          <div className="form-row-2">
+            <div className="form-group">
+              <div className="field-label-row">
+                <label className="field-label">تاریخ تصویب *</label>
+              </div>
+              <input
+                type="date"
+                className={`form-input ${errors.approvalDate ? "input-has-error" : ""}`}
+                value={data.approvalDate}
+                onChange={(e) => handleInputChange("approvalDate", e.target.value)}
+                disabled={isSubmitting}
+              />
+              {errors.approvalDate && <div className="error-message">{errors.approvalDate}</div>}
+            </div>
+
+            <div className="form-group">
+              <div className="field-label-row">
+                <label className="field-label">تاریخ ابلاغ *</label>
+              </div>
+              <input
+                type="date"
+                className={`form-input ${errors.significationDate ? "input-has-error" : ""}`}
+                value={data.significationDate}
+                onChange={(e) => handleInputChange("significationDate", e.target.value)}
+                disabled={isSubmitting}
+              />
+              {errors.significationDate && <div className="error-message">{errors.significationDate}</div>}
+            </div>
+          </div>
+
+          {/* ردیف تاریخ پایان اعتبار و وضعیت سند */}
+          <div className="form-row-2">
+            <div className="form-group">
+              <div className="field-label-row">
+                <label className="field-label">تاریخ پایان اعتبار (اختیاری)</label>
+              </div>
+              <input
+                type="date"
+                className="form-input"
+                value={data.validityDate}
+                onChange={(e) => handleInputChange("validityDate", e.target.value)}
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <div className="form-group">
+              <div className="field-label-row">
+                <label className="field-label">وضعیت سند</label>
+              </div>
+              <select
+                className="form-input"
+                value={data.entityStatusId}
+                onChange={(e) => handleInputChange("entityStatusId", Number(e.target.value))}
+                disabled={isSubmitting}
+              >
+                <option value={1}>فعال / لازم‌الاجرا</option>
+                <option value={2}>منقضی شده</option>
+                <option value={3}>ابطال شده</option>
+                <option value={0}>پیش‌نویس</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ردیف استان مربوطه */}
+          <div className="form-row-2">
+            <div className="form-group">
+              <div className="field-label-row">
+                <label className="field-label">
+                  {activeLangTab === "fa" ? "استان مربوطه" : "Relevant Province"}
+                </label>
+              </div>
+              <select
+                className="form-input"
+                value={data.province}
+                onChange={(e) => handleInputChange("province", e.target.value)}
+                disabled={isSubmitting}
+              >
+                <option value="">
+                  {activeLangTab === "fa" ? "-- سراسری (تمامی استان‌ها) --" : "-- National / All Provinces --"}
+                </option>
+                {IRAN_PROVINCES.map((prov) => (
+                  <option key={prov.nameFa} value={prov.nameFa}>
+                    {activeLangTab === "fa" ? prov.nameFa : `${prov.nameEn} (${prov.nameFa})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* فیلد عنوان بخشنامه همراه با سوئیچ زبانه */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
-                عنوان بخشنامه {activeLang.title === "fa" ? "(فارسی)" : "(English)"}
+                عنوان بخشنامه {activeLangTab === "fa" ? "(فارسی) *" : "(English)"}
               </label>
-              {renderLangSwitcher("title")}
+              <div className="lang-switcher">
+                <button
+                  type="button"
+                  className={`lang-btn ${activeLangTab === "fa" ? "active" : ""}`}
+                  onClick={() => setActiveLangTab("fa")}
+                >
+                  فارسی
+                </button>
+                <button
+                  type="button"
+                  className={`lang-btn ${activeLangTab === "en" ? "active" : ""}`}
+                  onClick={() => setActiveLangTab("en")}
+                >
+                  EN
+                </button>
+              </div>
             </div>
-
-            {activeLang.title === "fa" ? (
-              <>
-                <input
-                  type="text"
-                  name="titleFa"
-                  dir="rtl"
-                  value={data.titleFa}
-                  onChange={handleChange}
-                  placeholder="عنوان کامل بخشنامه به فارسی..."
-                  className={`form-input ${errors.titleFa ? "input-has-error" : ""}`}
-                />
-                {errors.titleFa && (
-                  <div className="error-message">{errors.titleFa}</div>
-                )}
-              </>
+            {activeLangTab === "fa" ? (
+              <input
+                type="text"
+                className={`form-input ${errors.titleFa ? "input-has-error" : ""}`}
+                placeholder="عنوان بخشنامه به زبان فارسی..."
+                value={data.titleFa}
+                onChange={(e) => handleInputChange("titleFa", e.target.value)}
+                disabled={isSubmitting}
+              />
             ) : (
               <input
                 type="text"
-                name="titleEn"
                 dir="ltr"
-                value={data.titleEn}
-                onChange={handleChange}
-                placeholder="Directive title in English..."
                 className="form-input"
+                placeholder="Directive title in English..."
+                value={data.titleEn}
+                onChange={(e) => handleInputChange("titleEn", e.target.value)}
+                disabled={isSubmitting}
               />
+            )}
+            {activeLangTab === "fa" && errors.titleFa && (
+              <div className="error-message">{errors.titleFa}</div>
             )}
           </div>
 
-          {/* خلاصه بخشنامه */}
+          {/* فیلد خلاصه بخشنامه */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
-                خلاصه بخشنامه {activeLang.summary === "fa" ? "(فارسی)" : "(English)"}
+                خلاصه بخشنامه {activeLangTab === "fa" ? "(فارسی)" : "(English)"}
               </label>
-              {renderLangSwitcher("summary")}
             </div>
-
-            {activeLang.summary === "fa" ? (
-              <>
-                <textarea
-                  name="summaryFa"
-                  dir="rtl"
-                  rows={3}
-                  value={data.summaryFa}
-                  onChange={handleChange}
-                  placeholder="خلاصه اجرایی یا موضوع بخشنامه به زبان فارسی..."
-                  className={`form-textarea ${errors.summaryFa ? "input-has-error" : ""}`}
-                />
-                {errors.summaryFa && (
-                  <div className="error-message">{errors.summaryFa}</div>
-                )}
-              </>
-            ) : (
+            {activeLangTab === "fa" ? (
               <textarea
-                name="summaryEn"
-                dir="ltr"
+                className="form-textarea"
                 rows={3}
-                value={data.summaryEn}
-                onChange={handleChange}
-                placeholder="Brief summary in English..."
-                className="form-textarea"
+                placeholder="خلاصه مختصری از اهداف و مفاد بخشنامه..."
+                value={data.summaryFa}
+                onChange={(e) => handleInputChange("summaryFa", e.target.value)}
+                disabled={isSubmitting}
               />
-            )}
-          </div>
-
-          {/* متن کامل بخشنامه */}
-          <div className="form-group">
-            <div className="field-label-row">
-              <label className="field-label">
-                متن کامل بخشنامه {activeLang.body === "fa" ? "(فارسی)" : "(English)"}
-              </label>
-              {renderLangSwitcher("body")}
-            </div>
-
-            {activeLang.body === "fa" ? (
-              <>
-                <textarea
-                  name="bodyFa"
-                  dir="rtl"
-                  rows={8}
-                  value={data.bodyFa}
-                  onChange={handleChange}
-                  placeholder="مفاد و متن کامل بخشنامه فارسی..."
-                  className={`form-textarea ${errors.bodyFa ? "input-has-error" : ""}`}
-                />
-                {errors.bodyFa && (
-                  <div className="error-message">{errors.bodyFa}</div>
-                )}
-              </>
             ) : (
               <textarea
-                name="bodyEn"
                 dir="ltr"
-                rows={8}
-                value={data.bodyEn}
-                onChange={handleChange}
-                placeholder="Full text of the directive in English..."
                 className="form-textarea"
+                rows={3}
+                placeholder="Brief summary of the directive..."
+                value={data.summaryEn}
+                onChange={(e) => handleInputChange("summaryEn", e.target.value)}
+                disabled={isSubmitting}
               />
             )}
           </div>
 
-          {/* کلمات کلیدی */}
+          {/* فیلد متن کامل بخشنامه */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
-                کلمات کلیدی {activeLang.keywords === "fa" ? "(فارسی)" : "(English)"}
+                متن کامل بخشنامه {activeLangTab === "fa" ? "(فارسی)" : "(English)"}
               </label>
-              {renderLangSwitcher("keywords")}
             </div>
-
-            {activeLang.keywords === "fa" ? (
-              <>
-                <div className="keyword-input-wrapper">
-                  <input
-                    type="text"
-                    dir="rtl"
-                    value={keywordInput.fa}
-                    onChange={(e) =>
-                      setKeywordInput((prev) => ({ ...prev, fa: e.target.value }))
-                    }
-                    onKeyDown={(e) => handleKeywordKeyDown("fa", e)}
-                    placeholder="مثال: ترخیص، اظهارنامه، EPL (Enter برای ثبت)"
-                    className="form-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addKeyword("fa")}
-                    className="btn-add-keyword"
-                  >
-                    افزودن
-                  </button>
-                </div>
-
-                <div className="chips-container">
-                  {data.keywordsFa.map((item, index) => (
-                    <span key={`fa-${index}`} className="keyword-chip">
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeKeyword("fa", index)}
-                        className="chip-remove-btn"
-                        title="حذف کلمه کلیدی"
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </>
+            {activeLangTab === "fa" ? (
+              <textarea
+                className="form-textarea"
+                rows={7}
+                placeholder="متن کامل مصوبه و بخشنامه..."
+                value={data.bodyFa}
+                onChange={(e) => handleInputChange("bodyFa", e.target.value)}
+                disabled={isSubmitting}
+              />
             ) : (
-              <>
-                <div className="keyword-input-wrapper">
-                  <input
-                    type="text"
-                    dir="ltr"
-                    value={keywordInput.en}
-                    onChange={(e) =>
-                      setKeywordInput((prev) => ({ ...prev, en: e.target.value }))
-                    }
-                    onKeyDown={(e) => handleKeywordKeyDown("en", e)}
-                    placeholder="e.g. Clearance, Customs, Export (Press Enter)"
-                    className="form-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addKeyword("en")}
-                    className="btn-add-keyword"
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div className="chips-container">
-                  {data.keywordsEn.map((item, index) => (
-                    <span key={`en-${index}`} className="keyword-chip">
-                      {item}
-                      <button
-                        type="button"
-                        onClick={() => removeKeyword("en", index)}
-                        className="chip-remove-btn"
-                        title="Remove keyword"
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </>
+              <textarea
+                dir="ltr"
+                className="form-textarea"
+                rows={7}
+                placeholder="Full body text of the directive..."
+                value={data.bodyEn}
+                onChange={(e) => handleInputChange("bodyEn", e.target.value)}
+                disabled={isSubmitting}
+              />
             )}
           </div>
 
-          {/* پیوست فایل‌ها (Attachments) */}
+          {/* بخش کلمات کلیدی */}
           <div className="form-group">
             <div className="field-label-row">
-              <label className="field-label">فایل‌های پیوست (اسکن بخشنامه، ضمائم، فرمت PDF/Word)</label>
+              <label className="field-label">
+                کلمات کلیدی {activeLangTab === "fa" ? "(فارسی)" : "(English)"}
+              </label>
+            </div>
+            <div className="keyword-input-wrapper">
+              <input
+                type="text"
+                dir={activeLangTab === "en" ? "ltr" : "rtl"}
+                className="form-input"
+                placeholder={activeLangTab === "fa" ? "افزودن کلمه کلیدی..." : "Add keyword..."}
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddKeyword();
+                  }
+                }}
+                disabled={isSubmitting}
+              />
+              <button
+                type="button"
+                className="btn-add-keyword"
+                onClick={handleAddKeyword}
+                disabled={isSubmitting}
+              >
+                افزودن
+              </button>
             </div>
 
+            {currentKeywords.length > 0 && (
+              <div className="chips-container">
+                {currentKeywords.map((tag) => (
+                  <span key={tag} className="keyword-chip">
+                    {tag}
+                    <button
+                      type="button"
+                      className="chip-remove-btn"
+                      onClick={() => handleRemoveKeyword(tag, activeLangTab)}
+                      disabled={isSubmitting}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* بخش پیوست فایل (Attachments) */}
+          <div className="form-group">
+            <div className="field-label-row">
+              <label className="field-label">فایل‌های پیوست</label>
+            </div>
             <div
               className={`file-dropzone ${isDragging ? "dragging" : ""}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (!isSubmitting && e.dataTransfer.files) {
+                  handleFilesAdded(e.dataTransfer.files);
+                }
+              }}
             >
               <input
-                ref={fileInputRef}
                 type="file"
+                ref={fileInputRef}
                 multiple
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.jpg,.jpeg,.png"
                 className="file-dropzone-input"
-                onChange={(e) => handleFilesSelected(e.target.files)}
+                accept={ALLOWED_EXTENSIONS.map((x) => `.${x}`).join(",")}
+                onChange={(e) => {
+                  if (e.target.files) handleFilesAdded(e.target.files);
+                  e.target.value = "";
+                }}
+                disabled={isSubmitting}
               />
               <div className="dropzone-title">
-                فایل‌ها را به اینجا بکشید یا برای <span>انتخاب فایل</span> کلیک نمایید
+                برای انتخاب فایل‌ها <span>اینجا کلیک کنید</span> یا فایل‌ها را به این قسمت بکشید
               </div>
               <div className="dropzone-hint">
-                فرمت‌های مجاز: PDF, Word, Excel, ZIP, RAR, JPG, PNG (حداکثر {MAX_FILE_SIZE_MB} مگابایت)
+                فرمت‌های مجاز: PDF, DOC, DOCX, XLS, XLSX, ZIP, RAR, JPG, PNG (حداکثر ۲۰ مگابایت)
               </div>
             </div>
-
-            {errors.attachments && (
-              <div className="error-message">{errors.attachments}</div>
-            )}
 
             {data.attachments.length > 0 && (
               <div className="attachments-list">
                 {data.attachments.map((att) => (
                   <div key={att.id} className="attachment-item">
                     <div className="attachment-meta">
-                      <span className="attachment-ext">{att.ext}</span>
+                      <div className="attachment-ext">{att.ext}</div>
                       <div className="attachment-info">
-                        <div className="attachment-name" title={att.name}>
-                          {att.name}
-                        </div>
-                        <div className="attachment-size">
-                          {formatFileSize(att.size)}
-                        </div>
+                        <div className="attachment-name" title={att.name}>{att.name}</div>
+                        <div className="attachment-size">{(att.size / (1024 * 1024)).toFixed(2)} MB</div>
                       </div>
                     </div>
 
                     <div className="attachment-captions">
                       <input
                         type="text"
-                        dir="rtl"
-                        placeholder="عنوان پیوست (فارسی)..."
-                        value={att.titleFa}
-                        onChange={(e) =>
-                          handleAttachmentCaptionChange(att.id, "titleFa", e.target.value)
-                        }
                         className="attachment-caption-input"
+                        placeholder="عنوان فارسی پیوست"
+                        value={att.titleFa}
+                        onChange={(e) => handleAttachmentChange(att.id, "titleFa", e.target.value)}
+                        disabled={isSubmitting}
                       />
                       <input
                         type="text"
                         dir="ltr"
-                        placeholder="Attachment title (EN)..."
-                        value={att.titleEn}
-                        onChange={(e) =>
-                          handleAttachmentCaptionChange(att.id, "titleEn", e.target.value)
-                        }
                         className="attachment-caption-input"
+                        placeholder="English Caption"
+                        value={att.titleEn}
+                        onChange={(e) => handleAttachmentChange(att.id, "titleEn", e.target.value)}
+                        disabled={isSubmitting}
                       />
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => removeAttachment(att.id)}
                       className="btn-remove-attachment"
+                      onClick={() => handleRemoveAttachment(att.id)}
+                      disabled={isSubmitting}
                     >
                       حذف
                     </button>
@@ -630,35 +675,45 @@ const DirectiveAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* اکشن‌ها */}
+          {/* پیام وضعیت فرایند آپلود و ثبت */}
+          {statusMessage && (
+            <div style={{ marginTop: "16px", color: "var(--primary-color)", fontWeight: "bold", fontSize: "13px" }}>
+              {statusMessage}
+            </div>
+          )}
+
+          {/* دکمه‌های اکشن فرم */}
           <div className="form-actions">
             <button
               type="button"
-              onClick={handleClear}
               className="btn-clear"
+              onClick={handleClear}
+              disabled={isSubmitting}
             >
-              پاک‌سازی
+              پاک کردن فرم
             </button>
             <button
               type="button"
-              onClick={() => setShowPreview(true)}
               className="btn-preview"
+              onClick={() => setIsModalOpen(true)}
+              disabled={isSubmitting}
             >
-              پیش‌نمایش
+              پیش‌نمایش بخشنامه
             </button>
             <button
               type="submit"
               className="btn-submit"
+              disabled={isSubmitting}
             >
-              ثبت نهایی بخشنامه
+              {isSubmitting ? "در حال ثبت اطلاعات..." : "ثبت نهایی بخشنامه"}
             </button>
           </div>
         </form>
       </div>
 
       {/* مودال پیش‌نمایش (Preview Modal) */}
-      {showPreview && (
-        <div className="modal-overlay" onClick={() => setShowPreview(false)}>
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
             <div className="preview-modal-header">
               <h3>پیش‌نمایش بخشنامه</h3>
@@ -669,121 +724,130 @@ const DirectiveAddForm = ({ onSubmit }) => {
                     className={`lang-btn ${previewLang === "fa" ? "active" : ""}`}
                     onClick={() => setPreviewLang("fa")}
                   >
-                    نمای فارسی
+                    فارسی
                   </button>
                   <button
                     type="button"
                     className={`lang-btn ${previewLang === "en" ? "active" : ""}`}
                     onClick={() => setPreviewLang("en")}
                   >
-                    English View
+                    EN
                   </button>
                 </div>
                 <button
                   type="button"
                   className="btn-modal-close"
-                  onClick={() => setShowPreview(false)}
+                  onClick={() => setIsModalOpen(false)}
                 >
-                  &times;
+                  ×
                 </button>
               </div>
             </div>
 
-            <div
-              className="preview-modal-body"
-              dir={previewLang === "fa" ? "rtl" : "ltr"}
-            >
-              {/* متادیتای شماره و تاریخ */}
+            <div className="preview-modal-body">
               <div className="preview-meta-bar">
                 <div className="preview-meta-item">
-                  <strong>{previewLang === "fa" ? "شماره بخشنامه:" : "Directive No:"}</strong>
-                  <span>{data.directiveNo || "---"}</span>
+                  شماره: <span>{data.directiveNo || "---"}</span>
                 </div>
                 <div className="preview-meta-item">
-                  <strong>{previewLang === "fa" ? "تاریخ تصویب:" : "Approval Date:"}</strong>
-                  <span>{data.approvalDate || "---"}</span>
+                  مرجع صادرکننده: <span>{data.issuingAuthority || "---"}</span>
+                </div>
+                <div className="preview-meta-item">
+                  استان: <span>{data.province || "سراسری (تمامی استان‌ها)"}</span>
+                </div>
+                <div className="preview-meta-item">
+                  تاریخ تصویب: <span>{data.approvalDate || "---"}</span>
+                </div>
+                <div className="preview-meta-item">
+                  تاریخ ابلاغ: <span>{data.significationDate || "---"}</span>
                 </div>
               </div>
 
-              {/* عنوان */}
-              <h2 className="preview-main-title">
-                {previewLang === "fa"
-                  ? data.titleFa || <span className="preview-empty-notice">(عنوان فارسی وارد نشده)</span>
-                  : data.titleEn || <span className="preview-empty-notice">(No English title provided)</span>}
-              </h2>
+              {previewLang === "fa" ? (
+                <>
+                  <h2 className="preview-main-title">{data.titleFa || "عنوان بخشنامه ثبت نشده است"}</h2>
 
-              {/* خلاصه */}
-              <div className="preview-section-title">
-                {previewLang === "fa" ? "خلاصه بخشنامه" : "Executive Summary"}
-              </div>
-              <div className={`preview-summary-box ${previewLang === "en" ? "ltr" : ""}`}>
-                {previewLang === "fa"
-                  ? data.summaryFa || "خلاصه‌ای ثبت نشده است."
-                  : data.summaryEn || "No summary provided."}
-              </div>
+                  {data.summaryFa && (
+                    <>
+                      <div className="preview-section-title">خلاصه بخشنامه</div>
+                      <div className="preview-summary-box">{data.summaryFa}</div>
+                    </>
+                  )}
 
-              {/* متن کامل */}
-              <div className="preview-section-title">
-                {previewLang === "fa" ? "متن کامل ابلاغیه" : "Full Text"}
-              </div>
-              <div className="preview-body-content">
-                {previewLang === "fa"
-                  ? data.bodyFa || "متن بخشنامه خالی است."
-                  : data.bodyEn || "No English text provided."}
-              </div>
+                  <div className="preview-section-title">متن مصوبه</div>
+                  <div className="preview-body-content">
+                    {data.bodyFa || <span className="preview-empty-notice">متن اصلی بخشنامه وارد نشده است.</span>}
+                  </div>
 
-              {/* برچسب‌ها / کلمات کلیدی */}
-              <div className="preview-section-title">
-                {previewLang === "fa" ? "کلمات کلیدی" : "Keywords"}
-              </div>
-              <div className="preview-keywords-list">
-                {(previewLang === "fa" ? data.keywordsFa : data.keywordsEn).length > 0 ? (
-                  (previewLang === "fa" ? data.keywordsFa : data.keywordsEn).map((kw, i) => (
-                    <span key={i} className="keyword-chip">
-                      #{kw}
-                    </span>
-                  ))
-                ) : (
-                  <span className="preview-empty-notice">
-                    {previewLang === "fa" ? "کلمه کلیدی ثبت نشده است." : "No keywords added."}
-                  </span>
-                )}
-              </div>
-
-              {/* لیست پیوست‌ها */}
-              <div className="preview-section-title">
-                {previewLang === "fa"
-                  ? `فایل‌های ضمیمه (${data.attachments.length})`
-                  : `Attachments (${data.attachments.length})`}
-              </div>
-              {data.attachments.length > 0 ? (
-                <div className="preview-attachments-list">
-                  {data.attachments.map((att) => (
-                    <div key={att.id} className="preview-attachment-card">
-                      <span className="attachment-ext">{att.ext}</span>
-                      <div className="attachment-info">
-                        <div className="attachment-name">
-                          {previewLang === "fa"
-                            ? att.titleFa || att.name
-                            : att.titleEn || att.name}
-                        </div>
-                        <div className="attachment-size">{formatFileSize(att.size)}</div>
+                  {data.keywordsFa.length > 0 && (
+                    <>
+                      <div className="preview-section-title">کلمات کلیدی</div>
+                      <div className="preview-keywords-list">
+                        {data.keywordsFa.map((tag) => (
+                          <span key={tag} className="keyword-chip">
+                            #{tag}
+                          </span>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </>
+                  )}
+                </>
               ) : (
-                <span className="preview-empty-notice">
-                  {previewLang === "fa" ? "هیچ فایلی ضمیمه نشده است." : "No attached files."}
-                </span>
+                <div dir="ltr" style={{ textAlign: "left" }}>
+                  <h2 className="preview-main-title">{data.titleEn || "Directive title not specified"}</h2>
+
+                  {data.summaryEn && (
+                    <>
+                      <div className="preview-section-title">SUMMARY</div>
+                      <div className="preview-summary-box ltr">{data.summaryEn}</div>
+                    </>
+                  )}
+
+                  <div className="preview-section-title">BODY</div>
+                  <div className="preview-body-content">
+                    {data.bodyEn || <span className="preview-empty-notice">No directive body provided.</span>}
+                  </div>
+
+                  {data.keywordsEn.length > 0 && (
+                    <>
+                      <div className="preview-section-title">KEYWORDS</div>
+                      <div className="preview-keywords-list">
+                        {data.keywordsEn.map((tag) => (
+                          <span key={tag} className="keyword-chip">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {data.attachments.length > 0 && (
+                <>
+                  <div className="preview-section-title">فایل‌های پیوست ({data.attachments.length})</div>
+                  <div className="preview-attachments-list">
+                    {data.attachments.map((att) => (
+                      <div key={att.id} className="preview-attachment-card">
+                        <div className="attachment-ext">{att.ext}</div>
+                        <div className="attachment-info">
+                          <div className="attachment-name">
+                            {previewLang === "fa" ? (att.titleFa || att.name) : (att.titleEn || att.name)}
+                          </div>
+                          <div className="attachment-size">{(att.size / (1024 * 1024)).toFixed(2)} MB</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
             <div className="preview-modal-footer">
               <button
                 type="button"
-                className="btn-clear"
-                onClick={() => setShowPreview(false)}
+                className="btn-submit"
+                onClick={() => setIsModalOpen(false)}
               >
                 بستن پیش‌نمایش
               </button>

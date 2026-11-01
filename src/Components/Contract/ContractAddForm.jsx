@@ -1,5 +1,8 @@
 import React, { useMemo, useRef, useState } from "react";
 import "./ContractAddForm.css";
+import { contractService } from "../../services/ContractService";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const CONTRACT_STATUSES = [
   { value: "draft", labelFa: "پیش‌نویس", labelEn: "Draft" },
@@ -8,6 +11,14 @@ const CONTRACT_STATUSES = [
   { value: "completed", labelFa: "خاتمه‌یافته", labelEn: "Completed" },
   { value: "terminated", labelFa: "فسخ‌شده", labelEn: "Terminated" },
 ];
+
+const CONTRACT_STATUS_ID_MAP = {
+  draft: 1,
+  active: 2,
+  pending: 3,
+  completed: 4,
+  terminated: 5,
+};
 
 const ALLOWED_MIME_TYPES = [
   "application/pdf",
@@ -22,7 +33,7 @@ const ALLOWED_MIME_TYPES = [
   "image/png",
 ];
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 مگابایت
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 const ContractAddForm = ({ onSubmit }) => {
   const [data, setData] = useState({
@@ -42,70 +53,76 @@ const ContractAddForm = ({ onSubmit }) => {
   const [attachments, setAttachments] = useState([]);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewLang, setPreviewLang] = useState("fa");
 
   const fileInputRef = useRef(null);
 
-  // تب‌های سوئیچ زبان فیلدها
   const [activeLang, setActiveLang] = useState({
     title: "fa",
     company: "fa",
     description: "fa",
   });
 
-  // قالب‌بندی ارقام مبلغ به ۳ رقم
-  const formatNumber = (val) => {
-    if (!val) return "";
-    const clean = val.toString().replace(/\D/g, "");
+  const formatNumber = (value) => {
+    if (!value) return "";
+    const clean = String(value).replace(/\D/g, "");
     return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
   const formatFileSize = (bytes) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
+    if (!bytes) return "0 B";
     const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    const index = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (
+      parseFloat((bytes / Math.pow(1024, index)).toFixed(1)) + " " + sizes[index]
+    );
   };
 
   const handleLangToggle = (fieldKey, lang) => {
     setActiveLang((prev) => ({ ...prev, [fieldKey]: lang }));
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === "amount") {
-      const numericOnly = value.replace(/\D/g, "");
-      setData((prev) => ({ ...prev, amount: numericOnly }));
-    } else {
-      setData((prev) => ({ ...prev, [name]: value }));
-    }
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
+    setData((prev) => ({
+      ...prev,
+      [name]: name === "amount" ? value.replace(/\D/g, "") : value,
+    }));
+
+    setErrors((prev) => ({
+      ...prev,
+      [name]: "",
+      submit: "",
+    }));
   };
 
-  // پردازش فایل‌های انتخابی
   const processFiles = (fileList) => {
     const newFiles = Array.from(fileList);
     const validFiles = [];
     let fileError = "";
 
     newFiles.forEach((file) => {
+      const extensionAllowed =
+        /\.(rar|zip|pdf|docx?|xlsx?|png|jpe?g)$/i.test(file.name);
+
       if (file.size > MAX_FILE_SIZE) {
         fileError = `حجم فایل "${file.name}" بیش از ۲۰ مگابایت است.`;
+        toast.error(fileError);
         return;
       }
-      if (!ALLOWED_MIME_TYPES.includes(file.type) && !/\.(rar|zip|pdf|docx?|xlsx?|png|jpe?g)$/i.test(file.name)) {
-        fileError = `فرمت فایل "${file.name}" مجاز نیست. (PDF, Word, Excel, ZIP, RAR یا عکس)`;
+
+      if (!ALLOWED_MIME_TYPES.includes(file.type) && !extensionAllowed) {
+        fileError = `فرمت فایل "${file.name}" مجاز نیست.`;
+        toast.error(fileError);
         return;
       }
 
       validFiles.push({
-        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        file: file,
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file,
         name: file.name,
         size: file.size,
         extension: file.name.split(".").pop(),
@@ -114,42 +131,42 @@ const ContractAddForm = ({ onSubmit }) => {
       });
     });
 
-    if (fileError) {
-      setErrors((prev) => ({ ...prev, attachments: fileError }));
-    } else {
-      setErrors((prev) => ({ ...prev, attachments: "" }));
-    }
+    setErrors((prev) => ({
+      ...prev,
+      attachments: fileError || "",
+    }));
 
     if (validFiles.length > 0) {
       setAttachments((prev) => [...prev, ...validFiles]);
     }
   };
 
-  const handleFileInputChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      processFiles(e.target.files);
+  const handleFileInputChange = (event) => {
+    if (event.target.files?.length > 0) {
+      processFiles(event.target.files);
     }
-    e.target.value = "";
+    event.target.value = "";
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragOver = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     setDragActive(true);
   };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragLeave = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     setDragActive(false);
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDrop = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFiles(e.dataTransfer.files);
+
+    if (event.dataTransfer.files?.length > 0) {
+      processFiles(event.dataTransfer.files);
     }
   };
 
@@ -163,7 +180,6 @@ const ContractAddForm = ({ onSubmit }) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   };
 
-  // اعتبارسنجی فیلدها
   const validate = () => {
     const newErrors = {};
 
@@ -181,21 +197,38 @@ const ContractAddForm = ({ onSubmit }) => {
     } else if (data.startDate && data.endDate < data.startDate) {
       newErrors.endDate = "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.";
     }
-    if (!data.amount) {
+    if (!data.amount || Number(data.amount) <= 0) {
       newErrors.amount = "مبلغ قرارداد را وارد کنید.";
     }
     if (!data.descriptionFa.trim()) {
       newErrors.descriptionFa = "شرح و تعهدات قرارداد (فارسی) الزامی است.";
     }
-    if (data.websiteUrl && !/^https?:\/\/.+\..+/i.test(data.websiteUrl.trim())) {
-      newErrors.websiteUrl = "آدرس اینترنتی نامعتبر است (مثال: https://domain.ir)";
+    if (
+      data.websiteUrl &&
+      !/^https?:\/\/.+\..+/i.test(data.websiteUrl.trim())
+    ) {
+      newErrors.websiteUrl =
+        "آدرس اینترنتی نامعتبر است (مثال: https://domain.ir)";
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors((prev) => ({
+      ...prev,
+      titleFa: newErrors.titleFa || "",
+      companyFa: newErrors.companyFa || "",
+      startDate: newErrors.startDate || "",
+      endDate: newErrors.endDate || "",
+      amount: newErrors.amount || "",
+      descriptionFa: newErrors.descriptionFa || "",
+      websiteUrl: newErrors.websiteUrl || "",
+      submit: "",
+    }));
+
+    return {
+      isValid: Object.keys(newErrors).length === 0,
+      newErrors,
+    };
   };
 
-  // آبجکت نهایی جهت ارسال به سرور یا ساخت FormData
   const payload = useMemo(
     () => ({
       titleFa: data.titleFa.trim(),
@@ -209,26 +242,127 @@ const ContractAddForm = ({ onSubmit }) => {
       descriptionEn: data.descriptionEn.trim(),
       websiteUrl: data.websiteUrl.trim(),
       status: data.status,
-      attachments: attachments.map((att) => ({
-        file: att.file,
-        name: att.name,
-        size: att.size,
-        titleFa: att.titleFa.trim() || att.name,
-        titleEn: att.titleEn.trim() || att.name,
+      attachments: attachments.map((attachment) => ({
+        file: attachment.file,
+        name: attachment.name,
+        size: attachment.size,
+        titleFa: attachment.titleFa.trim() || attachment.name,
+        titleEn: attachment.titleEn.trim() || attachment.name,
       })),
     }),
     [data, attachments]
   );
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
+  const buildApiPayload = () => ({
+    deactivateAt: null,
+    titleFa: payload.titleFa,
+    titleEn: payload.titleEn,
+    companyNameFa: payload.companyFa,
+    companyNameEn: payload.companyEn,
+    unitId: "",
+    trackingCode: "",
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    amount: payload.amount,
+    bodyFa: payload.descriptionFa,
+    bodyEn: payload.descriptionEn,
+    siteLink: payload.websiteUrl,
+    entityStatusId: 0,
+    contractStatusId: CONTRACT_STATUS_ID_MAP[payload.status] ?? 0,
+    provinceId: 0,
+  });
 
-    if (typeof onSubmit === "function") {
-      await onSubmit(payload);
-    } else {
-      console.log("Contract Submitted Payload:", payload);
+  // تابع اصلی ارسال به سرور
+  const executeSubmit = async () => {
+    setIsSubmitting(true);
+    const apiPayload = buildApiPayload();
+
+    try {
+      if (typeof onSubmit === "function") {
+        await onSubmit({
+          ...payload,
+          apiPayload,
+        });
+      } else {
+        await contractService.manageContracts(apiPayload);
+      }
+
+      toast.success("قرارداد با موفقیت ثبت شد.");
+      handleClear();
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.title ||
+        error?.message ||
+        "خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.";
+
+      toast.error(message);
+      setErrors((prev) => ({ ...prev, submit: message }));
+    } finally {
+      setIsSubmitting(false);
     }
+  };
+
+  // رویداد کلیک روی دکمه ثبت نهایی (نمایش Toast تاییدیه)
+  const handleSubmitClick = (event) => {
+    event.preventDefault();
+
+    const validationResult = validate();
+    if (!validationResult.isValid) {
+      toast.warn("لطفاً خطاهای فرم را برطرف کنید.");
+      return;
+    }
+
+    // نمایش Toast تاییدیه سفارشی
+    toast.info(
+      ({ closeToast }) => (
+        <div style={{ textAlign: "right", fontFamily: "inherit" }}>
+          <p style={{ margin: "0 0 10px 0", fontWeight: "bold" }}>
+            آیا از ثبت نهایی این قرارداد اطمینان دارید؟
+          </p>
+          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => {
+                closeToast();
+                executeSubmit();
+              }}
+              style={{
+                background: "#28a745",
+                color: "#fff",
+                border: "none",
+                padding: "4px 10px",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              بله، ثبت شود
+            </button>
+            <button
+              type="button"
+              onClick={closeToast}
+              style={{
+                background: "#6c757d",
+                color: "#fff",
+                border: "none",
+                padding: "4px 10px",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        position: "top-center",
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+        closeButton: false,
+      }
+    );
   };
 
   const handleClear = () => {
@@ -270,10 +404,12 @@ const ContractAddForm = ({ onSubmit }) => {
   );
 
   const getStatusBadge = (statusValue, lang) => {
-    const item = CONTRACT_STATUSES.find((s) => s.value === statusValue) || CONTRACT_STATUSES[1];
+    const status =
+      CONTRACT_STATUSES.find((item) => item.value === statusValue) ||
+      CONTRACT_STATUSES[1];
     return (
       <span className={`status-tag ${statusValue}`}>
-        {lang === "fa" ? item.labelFa : item.labelEn}
+        {lang === "fa" ? status.labelFa : status.labelEn}
       </span>
     );
   };
@@ -281,7 +417,6 @@ const ContractAddForm = ({ onSubmit }) => {
   return (
     <div className="contract-page" dir="rtl">
       <div className="contract-card">
-        {/* هدر */}
         <header className="contract-header">
           <div>
             <h1 className="contract-title">ثبت و مدیریت قرارداد جدید</h1>
@@ -292,14 +427,13 @@ const ContractAddForm = ({ onSubmit }) => {
           <span className="contract-badge">امور قراردادها</span>
         </header>
 
-        {/* بدنه فرم */}
-        <form onSubmit={handleSubmit} className="contract-form" noValidate>
-          {/* عنوان قرارداد (Bilingual) */}
+        <form onSubmit={handleSubmitClick} className="contract-form" noValidate>
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
                 <span className="required-star">*</span>
-                موضوع / عنوان قرارداد {activeLang.title === "fa" ? "(فارسی)" : "(English)"}
+                موضوع / عنوان قرارداد{" "}
+                {activeLang.title === "fa" ? "(فارسی)" : "(English)"}
               </label>
               {renderLangSwitcher("title")}
             </div>
@@ -315,7 +449,9 @@ const ContractAddForm = ({ onSubmit }) => {
                   placeholder="مثال: قرارداد پشتیبانی سامانه‌های پنجره واحد تجاری"
                   className={`form-input ${errors.titleFa ? "input-has-error" : ""}`}
                 />
-                {errors.titleFa && <div className="error-message">{errors.titleFa}</div>}
+                {errors.titleFa && (
+                  <div className="error-message">{errors.titleFa}</div>
+                )}
               </>
             ) : (
               <input
@@ -330,12 +466,12 @@ const ContractAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* نام شرکت (Bilingual) */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
                 <span className="required-star">*</span>
-                نام شرکت طرف قرارداد {activeLang.company === "fa" ? "(فارسی)" : "(English)"}
+                نام شرکت طرف قرارداد{" "}
+                {activeLang.company === "fa" ? "(فارسی)" : "(English)"}
               </label>
               {renderLangSwitcher("company")}
             </div>
@@ -351,7 +487,9 @@ const ContractAddForm = ({ onSubmit }) => {
                   placeholder="مثال: شرکت راهکارهای هوشمند تجارت"
                   className={`form-input ${errors.companyFa ? "input-has-error" : ""}`}
                 />
-                {errors.companyFa && <div className="error-message">{errors.companyFa}</div>}
+                {errors.companyFa && (
+                  <div className="error-message">{errors.companyFa}</div>
+                )}
               </>
             ) : (
               <input
@@ -366,7 +504,6 @@ const ContractAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* مواعد و وضعیت */}
           <div className="form-grid-3">
             <div className="form-group">
               <label className="field-label">
@@ -380,7 +517,9 @@ const ContractAddForm = ({ onSubmit }) => {
                 onChange={handleChange}
                 className={`form-input ${errors.startDate ? "input-has-error" : ""}`}
               />
-              {errors.startDate && <div className="error-message">{errors.startDate}</div>}
+              {errors.startDate && (
+                <div className="error-message">{errors.startDate}</div>
+              )}
             </div>
 
             <div className="form-group">
@@ -395,7 +534,9 @@ const ContractAddForm = ({ onSubmit }) => {
                 onChange={handleChange}
                 className={`form-input ${errors.endDate ? "input-has-error" : ""}`}
               />
-              {errors.endDate && <div className="error-message">{errors.endDate}</div>}
+              {errors.endDate && (
+                <div className="error-message">{errors.endDate}</div>
+              )}
             </div>
 
             <div className="form-group">
@@ -406,22 +547,22 @@ const ContractAddForm = ({ onSubmit }) => {
                 onChange={handleChange}
                 className="form-select"
               >
-                {CONTRACT_STATUSES.map((st) => (
-                  <option key={st.value} value={st.value}>
-                    {st.labelFa} ({st.labelEn})
+                {CONTRACT_STATUSES.map((status) => (
+                  <option key={status.value} value={status.value}>
+                    {status.labelFa} ({status.labelEn})
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* مبلغ و وب‌سایت */}
           <div className="form-grid-2">
             <div className="form-group">
               <label className="field-label">
                 <span className="required-star">*</span>
                 مبلغ کل قرارداد
               </label>
+
               <div className="amount-input-group">
                 <input
                   type="text"
@@ -434,7 +575,10 @@ const ContractAddForm = ({ onSubmit }) => {
                 />
                 <span className="amount-unit">ریال</span>
               </div>
-              {errors.amount && <div className="error-message">{errors.amount}</div>}
+
+              {errors.amount && (
+                <div className="error-message">{errors.amount}</div>
+              )}
             </div>
 
             <div className="form-group">
@@ -448,16 +592,18 @@ const ContractAddForm = ({ onSubmit }) => {
                 placeholder="https://example.com"
                 className={`form-input ${errors.websiteUrl ? "input-has-error" : ""}`}
               />
-              {errors.websiteUrl && <div className="error-message">{errors.websiteUrl}</div>}
+              {errors.websiteUrl && (
+                <div className="error-message">{errors.websiteUrl}</div>
+              )}
             </div>
           </div>
 
-          {/* شرح قرارداد (Bilingual) */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
                 <span className="required-star">*</span>
-                شرح و تعهدات قرارداد {activeLang.description === "fa" ? "(فارسی)" : "(English)"}
+                شرح و تعهدات قرارداد{" "}
+                {activeLang.description === "fa" ? "(فارسی)" : "(English)"}
               </label>
               {renderLangSwitcher("description")}
             </div>
@@ -490,16 +636,17 @@ const ContractAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* بخش آپلود فایل‌های قرارداد */}
           <div className="form-group">
-            <label className="field-label">اسناد و ضمائم قرارداد (فایل‌های پیوست)</label>
+            <label className="field-label">
+              اسناد و ضمائم قرارداد (فایل‌های پیوست)
+            </label>
 
             <div
               className={`dropzone-area ${dragActive ? "drag-active" : ""}`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              onClick={() => fileInputRef.current?.click()}
             >
               <input
                 type="file"
@@ -509,12 +656,13 @@ const ContractAddForm = ({ onSubmit }) => {
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.png,.jpg,.jpeg"
                 style={{ display: "none" }}
               />
+
               <div className="dropzone-icon">📁</div>
               <p className="dropzone-text">
                 فایل‌های نسخه امضاشده یا ضمائم قرارداد را به اینجا بکشید یا برای انتخاب کلیک کنید
               </p>
               <p className="dropzone-hint">
-                فرمت‌های مجاز: PDF, Word, Excel, ZIP, RAR, تصاویر (حداکثر ۲۰ مگابایت برای هر فایل)
+                فرمت‌های مجاز: PDF، Word، Excel، ZIP، RAR، تصاویر (حداکثر ۲۰ مگابایت برای هر فایل)
               </p>
             </div>
 
@@ -522,7 +670,6 @@ const ContractAddForm = ({ onSubmit }) => {
               <div className="error-message">{errors.attachments}</div>
             )}
 
-            {/* لیست فایل‌های اضافه شده */}
             {attachments.length > 0 && (
               <div className="attachments-list">
                 {attachments.map((item) => (
@@ -533,7 +680,9 @@ const ContractAddForm = ({ onSubmit }) => {
                         <span className="attachment-name" title={item.name}>
                           {item.name}
                         </span>
-                        <span className="attachment-size">{formatFileSize(item.size)}</span>
+                        <span className="attachment-size">
+                          {formatFileSize(item.size)}
+                        </span>
                       </div>
                     </div>
 
@@ -542,18 +691,27 @@ const ContractAddForm = ({ onSubmit }) => {
                         type="text"
                         placeholder="عنوان پیوست (فارسی)"
                         value={item.titleFa}
-                        onChange={(e) =>
-                          handleAttachmentMetaChange(item.id, "titleFa", e.target.value)
+                        onChange={(event) =>
+                          handleAttachmentMetaChange(
+                            item.id,
+                            "titleFa",
+                            event.target.value
+                          )
                         }
                         className="attachment-title-input"
                         dir="rtl"
                       />
+
                       <input
                         type="text"
                         placeholder="Attachment title (EN)"
                         value={item.titleEn}
-                        onChange={(e) =>
-                          handleAttachmentMetaChange(item.id, "titleEn", e.target.value)
+                        onChange={(event) =>
+                          handleAttachmentMetaChange(
+                            item.id,
+                            "titleEn",
+                            event.target.value
+                          )
                         }
                         className="attachment-title-input"
                         dir="ltr"
@@ -574,31 +732,52 @@ const ContractAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* اکشن‌ها */}
+          {errors.submit && (
+            <div className="error-message" role="alert">
+              {errors.submit}
+            </div>
+          )}
+
           <div className="form-actions">
-            <button type="button" onClick={handleClear} className="btn-clear">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="btn-clear"
+              disabled={isSubmitting}
+            >
               پاک‌سازی
             </button>
+
             <button
               type="button"
               onClick={() => setShowPreview(true)}
               className="btn-preview"
+              disabled={isSubmitting}
             >
               پیش‌نمایش
             </button>
-            <button type="submit" className="btn-submit">
-              ثبت نهایی قرارداد
+
+            <button
+              type="submit"
+              className="btn-submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "در حال ثبت..." : "ثبت نهایی قرارداد"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* مودال پیش‌نمایش قرارداد */}
+      {/* مودال پیش‌نمایش */}
       {showPreview && (
         <div className="modal-overlay" onClick={() => setShowPreview(false)}>
-          <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="preview-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="preview-modal-header">
               <h3>پیش‌نمایش اطلاعات قرارداد</h3>
+
               <div className="preview-header-controls">
                 <div className="lang-switcher">
                   <button
@@ -608,6 +787,7 @@ const ContractAddForm = ({ onSubmit }) => {
                   >
                     نمای فارسی
                   </button>
+
                   <button
                     type="button"
                     className={`lang-btn ${previewLang === "en" ? "active" : ""}`}
@@ -616,6 +796,7 @@ const ContractAddForm = ({ onSubmit }) => {
                     English View
                   </button>
                 </div>
+
                 <button
                   type="button"
                   className="btn-modal-close"
@@ -626,7 +807,10 @@ const ContractAddForm = ({ onSubmit }) => {
               </div>
             </div>
 
-            <div className="preview-modal-body" dir={previewLang === "fa" ? "rtl" : "ltr"}>
+            <div
+              className="preview-modal-body"
+              dir={previewLang === "fa" ? "rtl" : "ltr"}
+            >
               <h2 className="preview-main-title">
                 {previewLang === "fa"
                   ? data.titleFa || "(بدون عنوان)"
@@ -671,17 +855,22 @@ const ContractAddForm = ({ onSubmit }) => {
                 </div>
               </div>
 
-              {/* شرح */}
               <div className="preview-section-title">
-                {previewLang === "fa" ? "شرح و مفاد قرارداد" : "Contract Scope & Clauses"}
+                {previewLang === "fa"
+                  ? "شرح و مفاد قرارداد"
+                  : "Contract Scope & Clauses"}
               </div>
-              <div className={`preview-description-box ${previewLang === "en" ? "ltr" : ""}`}>
+
+              <div
+                className={`preview-description-box ${
+                  previewLang === "en" ? "ltr" : ""
+                }`}
+              >
                 {previewLang === "fa"
                   ? data.descriptionFa || "توضیحاتی وارد نشده است."
                   : data.descriptionEn || "No English description provided."}
               </div>
 
-              {/* وب‌سایت */}
               {data.websiteUrl && (
                 <a
                   href={data.websiteUrl}
@@ -689,32 +878,45 @@ const ContractAddForm = ({ onSubmit }) => {
                   rel="noopener noreferrer"
                   className="preview-link-btn"
                 >
-                  🔗 {previewLang === "fa" ? "وب‌سایت مرتبط" : "Associated Website"}
+                  🔗{" "}
+                  {previewLang === "fa"
+                    ? "وب‌سایت مرتبط"
+                    : "Associated Website"}
                 </a>
               )}
 
-              {/* پیوست‌های ثبت شده */}
               <div className="preview-section-title">
                 {previewLang === "fa"
                   ? `فایل‌های پیوست (${attachments.length})`
                   : `Attachments (${attachments.length})`}
               </div>
+
               {attachments.length === 0 ? (
                 <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  {previewLang === "fa" ? "پیوستی افزوده نشده است." : "No files attached."}
+                  {previewLang === "fa"
+                    ? "پیوستی افزوده نشده است."
+                    : "No files attached."}
                 </div>
               ) : (
                 <div className="preview-attachments-list">
-                  {attachments.map((att) => (
-                    <div key={att.id} className="preview-attachment-badge">
+                  {attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="preview-attachment-badge"
+                    >
                       <span>
                         📎{" "}
                         {previewLang === "fa"
-                          ? att.titleFa || att.name
-                          : att.titleEn || att.name}
+                          ? attachment.titleFa || attachment.name
+                          : attachment.titleEn || attachment.name}
                       </span>
-                      <span style={{ color: "var(--text-muted)", fontSize: 12 }}>
-                        {formatFileSize(att.size)}
+                      <span
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: 12,
+                        }}
+                      >
+                        {formatFileSize(attachment.size)}
                       </span>
                     </div>
                   ))}

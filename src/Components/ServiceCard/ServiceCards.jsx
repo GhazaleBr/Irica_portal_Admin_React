@@ -17,6 +17,7 @@ const servicesData = [
     icon: <FileCheck size={20} />,
     link: '/addnews'
   },
+
   {
     id: 12,
     category: 'services',

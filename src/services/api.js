@@ -1,29 +1,31 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL2,
 });
 
-// افزودن توکن به هدر درخواست‌ها
 api.interceptors.request.use((config) => {
-  const token =
-    localStorage.getItem('token') || sessionStorage.getItem('token');
+  const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+  
+  // بررسی وجود توکن و اضافه کردن آن به هدر با استاندارد Bearer
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
   return config;
 });
 
-// مدیریت خطاها به‌صورت متمرکز
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // بررسی وضعیت 401 (عدم احراز هویت)
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       sessionStorage.removeItem('token');
-      // هدایت به صفحه لاگین (اگر هنوز آنجا نیستیم)
+      
+      // هدایت به لاگین در صورتی که کاربر قبلاً در آن صفحه نباشد
       if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
+        window.location.href = '/login'; 
       }
     }
     return Promise.reject(error);

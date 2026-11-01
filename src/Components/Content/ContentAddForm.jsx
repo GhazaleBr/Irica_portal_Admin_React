@@ -1,4 +1,6 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
+import { toast } from "react-toastify";
+import { contentService } from "../../services/ContentService";
 import "./ContentAddForm.css";
 
 // فهرست طبقه‌بندی‌های موضوعی محتوا
@@ -11,17 +13,25 @@ const CONTENT_CATEGORIES = [
   { value: "reports", labelFa: "گزارش‌های تحلیلی و آماری", labelEn: "Analytical Reports" },
 ];
 
-const ContentAddForm = ({ onSubmit }) => {
+const ContentAddForm = ({ onSuccess }) => {
   const [data, setData] = useState({
     category: "",
-    titleFa: "",
-    titleEn: "",
+    title: "",
     summaryFa: "",
     summaryEn: "",
-    descriptionFa: "",
-    descriptionEn: "",
-    startDateTime: "",
-    endDateTime: "",
+    bodyFa: "",
+    bodyEn: "",
+    hasSchedule: true,
+    scheduleStartDate: "",
+    scheduleStartTime: "",
+    scheduleEndDate: "",
+    scheduleEndTime: "",
+    entityStatusId: 0,
+    navigationShow: true,
+    lockCopy: true,
+    provinceId: 0,
+    imageFaId: 0,
+    imageEnId: 0,
   });
 
   const [keywordsFa, setKeywordsFa] = useState([]);
@@ -29,65 +39,82 @@ const ContentAddForm = ({ onSubmit }) => {
   const [tempKeywordFa, setTempKeywordFa] = useState("");
   const [tempKeywordEn, setTempKeywordEn] = useState("");
 
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  // فایل‌های تصویر
+  const [imageFaFile, setImageFaFile] = useState(null);
+  const [imageEnFile, setImageEnFile] = useState(null);
+  const [imageFaPreview, setImageFaPreview] = useState("");
+  const [imageEnPreview, setImageEnPreview] = useState("");
 
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewLang, setPreviewLang] = useState("fa");
 
-  // تب فعال برای فیلدهای دوزبانه
+  // زبان فعال برای فیلدهای دوزبانه
   const [activeLang, setActiveLang] = useState({
-    title: "fa",
     summary: "fa",
-    description: "fa",
+    body: "fa",
     keywords: "fa",
+    image: "fa",
   });
 
-  const imageInputRef = useRef(null);
+  const imageFaInputRef = useRef(null);
+  const imageEnInputRef = useRef(null);
 
   const handleLangToggle = (fieldKey, lang) => {
     setActiveLang((prev) => ({ ...prev, [fieldKey]: lang }));
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
-  // مدیریت تصویر شاخص
-  const handleImageChange = (e) => {
+  // مدیریت آپلود تصاویر
+  const handleImageChange = (e, lang) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
-        setErrors((prev) => ({ ...prev, image: "لطفاً یک فایل تصویری معتبر انتخاب کنید." }));
+        setErrors((prev) => ({ ...prev, [lang === "fa" ? "imageFa" : "imageEn"]: "لطفاً فایل تصویری معتبر انتخاب کنید." }));
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setErrors((prev) => ({ ...prev, image: "حجم تصویر نباید بیشتر از ۵ مگابایت باشد." }));
+        setErrors((prev) => ({ ...prev, [lang === "fa" ? "imageFa" : "imageEn"]: "حجم تصویر حداکثر ۵ مگابایت است." }));
         return;
       }
-      setImageFile(file);
-      setImagePreviewUrl(URL.createObjectURL(file));
-      setErrors((prev) => ({ ...prev, image: "" }));
+
+      if (lang === "fa") {
+        setImageFaFile(file);
+        setImageFaPreview(URL.createObjectURL(file));
+      } else {
+        setImageEnFile(file);
+        setImageEnPreview(URL.createObjectURL(file));
+      }
+      setErrors((prev) => ({ ...prev, [lang === "fa" ? "imageFa" : "imageEn"]: "" }));
     }
   };
 
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    if (imagePreviewUrl) {
-      URL.revokeObjectURL(imagePreviewUrl);
-      setImagePreviewUrl("");
-    }
-    if (imageInputRef.current) {
-      imageInputRef.current.value = "";
+  const handleRemoveImage = (lang) => {
+    if (lang === "fa") {
+      setImageFaFile(null);
+      if (imageFaPreview) URL.revokeObjectURL(imageFaPreview);
+      setImageFaPreview("");
+      if (imageFaInputRef.current) imageFaInputRef.current.value = "";
+    } else {
+      setImageEnFile(null);
+      if (imageEnPreview) URL.revokeObjectURL(imageEnPreview);
+      setImageEnPreview("");
+      if (imageEnInputRef.current) imageEnInputRef.current.value = "";
     }
   };
 
-  // مدیریت کلمات کلیدی
+  // کلمات کلیدی
   const handleAddKeyword = (lang) => {
     if (lang === "fa" && tempKeywordFa.trim()) {
       if (!keywordsFa.includes(tempKeywordFa.trim())) {
@@ -117,74 +144,159 @@ const ContentAddForm = ({ onSubmit }) => {
     if (!data.category) {
       newErrors.category = "لطفاً طبقه‌بندی محتوا را انتخاب کنید.";
     }
-    if (!data.titleFa.trim()) {
-      newErrors.titleFa = "عنوان فارسی محتوا الزامی است.";
+    if (!data.title.trim()) {
+      newErrors.title = "عنوان محتوا الزامی است.";
     }
     if (!data.summaryFa.trim()) {
       newErrors.summaryFa = "خلاصه فارسی محتوا الزامی است.";
     }
-    if (!data.descriptionFa.trim()) {
-      newErrors.descriptionFa = "شرح و متن اصلی محتوا (فارسی) الزامی است.";
+    if (!data.bodyFa.trim()) {
+      newErrors.bodyFa = "متن اصلی محتوا (فارسی) الزامی است.";
     }
-    if (!data.startDateTime) {
-      newErrors.startDateTime = "تاریخ و ساعت شروع فعال‌سازی الزامی است.";
-    }
-    if (data.startDateTime && data.endDateTime && data.endDateTime <= data.startDateTime) {
-      newErrors.endDateTime = "تاریخ پایان باید بعد از تاریخ شروع باشد.";
+    if (data.hasSchedule && !data.scheduleStartDate) {
+      newErrors.scheduleStartDate = "تاریخ شروع زمان‌بندی الزامی است.";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // تهیه شیء خروجی جهت ارسال
-  const payload = useMemo(
-    () => ({
-      category: data.category,
-      titleFa: data.titleFa.trim(),
-      titleEn: data.titleEn.trim(),
-      summaryFa: data.summaryFa.trim(),
-      summaryEn: data.summaryEn.trim(),
-      descriptionFa: data.descriptionFa.trim(),
-      descriptionEn: data.descriptionEn.trim(),
-      startDateTime: data.startDateTime,
-      endDateTime: data.endDateTime,
-      keywordsFa,
-      keywordsEn,
-      imageFile,
-    }),
-    [data, keywordsFa, keywordsEn, imageFile]
-  );
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-
-    if (typeof onSubmit === "function") {
-      await onSubmit(payload);
-    } else {
-      console.log("Content Submitted Payload:", payload);
-    }
-  };
-
   const handleClear = () => {
     setData({
       category: "",
-      titleFa: "",
-      titleEn: "",
+      title: "",
       summaryFa: "",
       summaryEn: "",
-      descriptionFa: "",
-      descriptionEn: "",
-      startDateTime: "",
-      endDateTime: "",
+      bodyFa: "",
+      bodyEn: "",
+      hasSchedule: true,
+      scheduleStartDate: "",
+      scheduleStartTime: "",
+      scheduleEndDate: "",
+      scheduleEndTime: "",
+      entityStatusId: 0,
+      navigationShow: true,
+      lockCopy: true,
+      provinceId: 0,
+      imageFaId: 0,
+      imageEnId: 0,
     });
     setKeywordsFa([]);
     setKeywordsEn([]);
     setTempKeywordFa("");
     setTempKeywordEn("");
-    handleRemoveImage();
+    handleRemoveImage("fa");
+    handleRemoveImage("en");
     setErrors({});
+  };
+
+  // ارسال درخواست با FormData جهت پشتیبانی از فایل و مقادیر
+  const executeSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+
+      const formData = new FormData();
+      formData.append("category", data.category);
+      formData.append("title", data.title.trim());
+      formData.append("summaryFa", data.summaryFa.trim());
+      formData.append("summaryEn", data.summaryEn.trim());
+      formData.append("bodyFa", data.bodyFa.trim());
+      formData.append("bodyEn", data.bodyEn.trim());
+      formData.append("keyWordsFa", keywordsFa.join(","));
+      formData.append("keyWordsEn", keywordsEn.join(","));
+      formData.append("hasSchedule", data.hasSchedule);
+      formData.append("scheduleStartDate", data.scheduleStartDate);
+      formData.append("scheduleStartTime", data.scheduleStartTime);
+      formData.append("scheduleEndDate", data.scheduleEndDate);
+      formData.append("scheduleEndTime", data.scheduleEndTime);
+      formData.append("entityStatusId", data.entityStatusId);
+      formData.append("navigationShow", data.navigationShow);
+      formData.append("lockCopy", data.lockCopy);
+      formData.append("provinceId", data.provinceId);
+      formData.append("deactivateAt", new Date().toISOString());
+
+      if (imageFaFile) formData.append("imageFa", imageFaFile);
+      if (imageEnFile) formData.append("imageEn", imageEnFile);
+
+      const result = await contentService.manageContents(formData);
+
+      toast.success("محتوا با موفقیت ثبت و منتشر گردید.");
+
+      if (typeof onSuccess === "function") {
+        onSuccess(result);
+      }
+
+      handleClear();
+    } catch (error) {
+      console.error("Content Creation Error:", error);
+      const serverMessage =
+        error.response?.data?.message ||
+        error.response?.data?.detail ||
+        "خطا در ایجاد و ثبت محتوا. لطفاً مجدداً تلاش فرمایید.";
+      toast.error(serverMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // تأییدیه با react-toastify
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    toast.warn(
+      ({ closeToast }) => (
+        <div style={{ fontFamily: "inherit", direction: "rtl", padding: "4px 0" }}>
+          <p style={{ margin: "0 0 10px 0", fontSize: 13, fontWeight: 700, color: "#1e293b" }}>
+            آیا از ثبت و انتشار این محتوا اطمینان دارید؟
+          </p>
+          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              onClick={() => {
+                closeToast();
+                executeSubmit();
+              }}
+              style={{
+                padding: "5px 14px",
+                background: "#2563eb",
+                color: "#fff",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              بله، ثبت شود
+            </button>
+            <button
+              type="button"
+              onClick={closeToast}
+              style={{
+                padding: "5px 12px",
+                background: "#e2e8f0",
+                color: "#475569",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              انصراف
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        position: "top-center",
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+        closeButton: false,
+      }
+    );
   };
 
   const getCategoryLabel = (categoryValue, lang) => {
@@ -215,20 +327,18 @@ const ContentAddForm = ({ onSubmit }) => {
   return (
     <div className="content-page" dir="rtl">
       <div className="content-card">
-        {/* هدر */}
         <header className="content-header">
           <div>
             <h1 className="content-title">ایجاد و انتشار محتوای جدید</h1>
             <p className="content-subtitle">
-              انتخاب طبقه‌بندی موضوعی، متن دوزبانه، کلمات کلیدی، زمان‌بندی انتشار و تصویر شاخص
+              ثبت اطلاعات، متن دوزبانه، برچسب‌ها، زمان‌بندی و آپلود فایل‌های تصویر شاخص
             </p>
           </div>
           <span className="content-badge">مدیریت محتوا</span>
         </header>
 
-        {/* بدنه فرم */}
         <form onSubmit={handleSubmit} className="content-form" noValidate>
-          {/* طبقه‌بندی محتوا */}
+          {/* طبقه‌بندی موضوعی */}
           <div className="form-group">
             <label className="field-label">
               <span className="required-star">*</span>
@@ -238,6 +348,7 @@ const ContentAddForm = ({ onSubmit }) => {
               name="category"
               value={data.category}
               onChange={handleChange}
+              disabled={isSubmitting}
               className={`form-select ${errors.category ? "input-has-error" : ""}`}
             >
               <option value="">-- لطفاً دسته‌بندی مورد نظر را انتخاب نمایید --</option>
@@ -250,43 +361,26 @@ const ContentAddForm = ({ onSubmit }) => {
             {errors.category && <div className="error-message">{errors.category}</div>}
           </div>
 
-          {/* عنوان محتوا */}
+          {/* عنوان */}
           <div className="form-group">
-            <div className="field-label-row">
-              <label className="field-label">
-                <span className="required-star">*</span>
-                عنوان محتوا {activeLang.title === "fa" ? "(فارسی)" : "(English)"}
-              </label>
-              {renderLangSwitcher("title")}
-            </div>
-
-            {activeLang.title === "fa" ? (
-              <>
-                <input
-                  type="text"
-                  name="titleFa"
-                  dir="rtl"
-                  value={data.titleFa}
-                  onChange={handleChange}
-                  placeholder="مثال: دستورالعمل اجرایی ترخیص تجهیزات صنعتی از گمرک"
-                  className={`form-input ${errors.titleFa ? "input-has-error" : ""}`}
-                />
-                {errors.titleFa && <div className="error-message">{errors.titleFa}</div>}
-              </>
-            ) : (
-              <input
-                type="text"
-                name="titleEn"
-                dir="ltr"
-                value={data.titleEn}
-                onChange={handleChange}
-                placeholder="e.g. Operational Guidelines for Industrial Equipment Clearance"
-                className="form-input"
-              />
-            )}
+            <label className="field-label">
+              <span className="required-star">*</span>
+              عنوان محتوا (Title)
+            </label>
+            <input
+              type="text"
+              name="title"
+              dir="rtl"
+              value={data.title}
+              onChange={handleChange}
+              disabled={isSubmitting}
+              placeholder="مثال: دستورالعمل اجرایی ترخیص تجهیزات صنعتی از گمرک"
+              className={`form-input ${errors.title ? "input-has-error" : ""}`}
+            />
+            {errors.title && <div className="error-message">{errors.title}</div>}
           </div>
 
-          {/* خلاصه محتوا */}
+          {/* خلاصه */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
@@ -304,7 +398,8 @@ const ContentAddForm = ({ onSubmit }) => {
                   rows={2}
                   value={data.summaryFa}
                   onChange={handleChange}
-                  placeholder="چکیده کوتاه محتوا جهت نمایش در لیست‌ها و کارت‌ها..."
+                  disabled={isSubmitting}
+                  placeholder="چکیده کوتاه محتوا..."
                   className={`form-textarea ${errors.summaryFa ? "input-has-error" : ""}`}
                 />
                 {errors.summaryFa && <div className="error-message">{errors.summaryFa}</div>}
@@ -316,45 +411,46 @@ const ContentAddForm = ({ onSubmit }) => {
                 rows={2}
                 value={data.summaryEn}
                 onChange={handleChange}
-                placeholder="Short summary for card previews..."
+                disabled={isSubmitting}
+                placeholder="Short summary in English..."
                 className="form-textarea"
               />
             )}
           </div>
 
-          {/* متن اصلی و شرح */}
+          {/* متن اصلی (Body) */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
                 <span className="required-star">*</span>
-                شرح و متن کامل {activeLang.description === "fa" ? "(فارسی)" : "(English)"}
+                متن کامل {activeLang.body === "fa" ? "(فارسی)" : "(English)"}
               </label>
-              {renderLangSwitcher("description")}
+              {renderLangSwitcher("body")}
             </div>
 
-            {activeLang.description === "fa" ? (
+            {activeLang.body === "fa" ? (
               <>
                 <textarea
-                  name="descriptionFa"
+                  name="bodyFa"
                   dir="rtl"
                   rows={6}
-                  value={data.descriptionFa}
+                  value={data.bodyFa}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                   placeholder="متن کامل محتوا به زبان فارسی..."
-                  className={`form-textarea ${errors.descriptionFa ? "input-has-error" : ""}`}
+                  className={`form-textarea ${errors.bodyFa ? "input-has-error" : ""}`}
                 />
-                {errors.descriptionFa && (
-                  <div className="error-message">{errors.descriptionFa}</div>
-                )}
+                {errors.bodyFa && <div className="error-message">{errors.bodyFa}</div>}
               </>
             ) : (
               <textarea
-                name="descriptionEn"
+                name="bodyEn"
                 dir="ltr"
                 rows={6}
-                value={data.descriptionEn}
+                value={data.bodyEn}
                 onChange={handleChange}
-                placeholder="Full content description in English..."
+                disabled={isSubmitting}
+                placeholder="Full body text in English..."
                 className="form-textarea"
               />
             )}
@@ -364,7 +460,7 @@ const ContentAddForm = ({ onSubmit }) => {
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">
-                کلمات کلیدی / برچسب‌ها {activeLang.keywords === "fa" ? "(فارسی)" : "(English)"}
+                کلمات کلیدی {activeLang.keywords === "fa" ? "(فارسی)" : "(English)"}
               </label>
               {renderLangSwitcher("keywords")}
             </div>
@@ -377,15 +473,17 @@ const ContentAddForm = ({ onSubmit }) => {
                     dir="rtl"
                     value={tempKeywordFa}
                     onChange={(e) => setTempKeywordFa(e.target.value)}
+                    disabled={isSubmitting}
                     onKeyDown={(e) =>
                       e.key === "Enter" && (e.preventDefault(), handleAddKeyword("fa"))
                     }
-                    placeholder="کلمه کلیدی را تایپ کرده و افزودن را بزنید..."
+                    placeholder="کلمه کلیدی فارسی..."
                     className="form-input"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddKeyword("fa")}
+                    disabled={isSubmitting}
                     className="btn-add-tag"
                   >
                     افزودن
@@ -397,7 +495,7 @@ const ContentAddForm = ({ onSubmit }) => {
                       #{tag}
                       <span
                         className="tag-remove"
-                        onClick={() => handleRemoveKeyword("fa", tag)}
+                        onClick={() => !isSubmitting && handleRemoveKeyword("fa", tag)}
                       >
                         ×
                       </span>
@@ -413,15 +511,17 @@ const ContentAddForm = ({ onSubmit }) => {
                     dir="ltr"
                     value={tempKeywordEn}
                     onChange={(e) => setTempKeywordEn(e.target.value)}
+                    disabled={isSubmitting}
                     onKeyDown={(e) =>
                       e.key === "Enter" && (e.preventDefault(), handleAddKeyword("en"))
                     }
-                    placeholder="Type keyword and press add..."
+                    placeholder="English keyword..."
                     className="form-input"
                   />
                   <button
                     type="button"
                     onClick={() => handleAddKeyword("en")}
+                    disabled={isSubmitting}
                     className="btn-add-tag"
                   >
                     Add
@@ -433,7 +533,7 @@ const ContentAddForm = ({ onSubmit }) => {
                       #{tag}
                       <span
                         className="tag-remove"
-                        onClick={() => handleRemoveKeyword("en", tag)}
+                        onClick={() => !isSubmitting && handleRemoveKeyword("en", tag)}
                       >
                         ×
                       </span>
@@ -444,100 +544,183 @@ const ContentAddForm = ({ onSubmit }) => {
             )}
           </div>
 
-          {/* تنظیم روز و ساعت شروع و پایان فعال‌سازی */}
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="field-label">
-                <span className="required-star">*</span>
-                تاریخ و ساعت شروع فعال شدن
-              </label>
-              <input
-                type="datetime-local"
-                name="startDateTime"
-                value={data.startDateTime}
-                onChange={handleChange}
-                className={`form-input ${errors.startDateTime ? "input-has-error" : ""}`}
-              />
-              {errors.startDateTime && (
-                <div className="error-message">{errors.startDateTime}</div>
-              )}
+          {/* آپلود تصویر شاخص دوزبانه */}
+          <div className="form-group">
+            <div className="field-label-row">
+              <label className="field-label">تصویر شاخص {activeLang.image === "fa" ? "(فارسی)" : "(English)"}</label>
+              {renderLangSwitcher("image")}
             </div>
 
-            <div className="form-group">
-              <label className="field-label">تاریخ و ساعت پایان انقضا (اختیاری)</label>
-              <input
-                type="datetime-local"
-                name="endDateTime"
-                value={data.endDateTime}
-                onChange={handleChange}
-                className={`form-input ${errors.endDateTime ? "input-has-error" : ""}`}
-              />
-              {errors.endDateTime && (
-                <div className="error-message">{errors.endDateTime}</div>
-              )}
-            </div>
+            {activeLang.image === "fa" ? (
+              <>
+                <input
+                  type="file"
+                  ref={imageFaInputRef}
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => handleImageChange(e, "fa")}
+                  disabled={isSubmitting}
+                />
+                {!imageFaPreview ? (
+                  <div
+                    className="image-upload-box"
+                    onClick={() => !isSubmitting && imageFaInputRef.current?.click()}
+                  >
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>🖼️</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>کلیک جهت آپلود تصویر شاخص فارسی</div>
+                  </div>
+                ) : (
+                  <div className="image-preview-container">
+                    <img src={imageFaPreview} alt="FA Preview" className="image-preview-img" />
+                    <button
+                      type="button"
+                      className="btn-remove-image"
+                      onClick={() => handleRemoveImage("fa")}
+                      disabled={isSubmitting}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <input
+                  type="file"
+                  ref={imageEnInputRef}
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => handleImageChange(e, "en")}
+                  disabled={isSubmitting}
+                />
+                {!imageEnPreview ? (
+                  <div
+                    className="image-upload-box"
+                    onClick={() => !isSubmitting && imageEnInputRef.current?.click()}
+                  >
+                    <div style={{ fontSize: 24, marginBottom: 4 }}>🖼️</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>Click to upload English banner image</div>
+                  </div>
+                ) : (
+                  <div className="image-preview-container">
+                    <img src={imageEnPreview} alt="EN Preview" className="image-preview-img" />
+                    <button
+                      type="button"
+                      className="btn-remove-image"
+                      onClick={() => handleRemoveImage("en")}
+                      disabled={isSubmitting}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* آپلود تصویر شاخص */}
-          <div className="form-group">
-            <label className="field-label">تصویر شاخص محتوا</label>
-            <input
-              type="file"
-              ref={imageInputRef}
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleImageChange}
-            />
+          {/* تنظیمات زمان‌بندی */}
+          <div className="form-group" style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <input
+                type="checkbox"
+                name="hasSchedule"
+                id="hasSchedule"
+                checked={data.hasSchedule}
+                onChange={handleChange}
+                disabled={isSubmitting}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <label htmlFor="hasSchedule" style={{ fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>
+                فعال‌سازی زمان‌بندی انتشار محتوا (hasSchedule)
+              </label>
+            </div>
 
-            {!imagePreviewUrl ? (
-              <div
-                className="image-upload-box"
-                onClick={() => imageInputRef.current && imageInputRef.current.click()}
-              >
-                <div style={{ fontSize: 28, marginBottom: 4 }}>🖼️</div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>
-                  برای انتخاب یا آپلود تصویر شاخص کلیک کنید
+            {data.hasSchedule && (
+              <div className="form-grid-2" style={{ marginTop: "12px" }}>
+                <div className="form-group">
+                  <label className="field-label">تاریخ شروع (scheduleStartDate)</label>
+                  <input
+                    type="date"
+                    name="scheduleStartDate"
+                    value={data.scheduleStartDate}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className={`form-input ${errors.scheduleStartDate ? "input-has-error" : ""}`}
+                  />
+                  {errors.scheduleStartDate && (
+                    <div className="error-message">{errors.scheduleStartDate}</div>
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                  فرمت‌های مجاز: JPG, PNG, WEBP (حداکثر ۵ مگابایت)
+
+                <div className="form-group">
+                  <label className="field-label">ساعت شروع (scheduleStartTime)</label>
+                  <input
+                    type="time"
+                    name="scheduleStartTime"
+                    value={data.scheduleStartTime}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="form-input"
+                  />
                 </div>
-              </div>
-            ) : (
-              <div className="image-preview-container">
-                <img src={imagePreviewUrl} alt="Preview" className="image-preview-img" />
-                <button
-                  type="button"
-                  className="btn-remove-image"
-                  onClick={handleRemoveImage}
-                  title="حذف تصویر"
-                >
-                  ✕
-                </button>
+
+                <div className="form-group">
+                  <label className="field-label">تاریخ پایان (scheduleEndDate)</label>
+                  <input
+                    type="date"
+                    name="scheduleEndDate"
+                    value={data.scheduleEndDate}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="form-input"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="field-label">ساعت پایان (scheduleEndTime)</label>
+                  <input
+                    type="time"
+                    name="scheduleEndTime"
+                    value={data.scheduleEndTime}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="form-input"
+                  />
+                </div>
               </div>
             )}
-            {errors.image && <div className="error-message">{errors.image}</div>}
           </div>
 
           {/* اکشن‌ها */}
           <div className="form-actions">
-            <button type="button" onClick={handleClear} className="btn-clear">
+            <button
+              type="button"
+              onClick={handleClear}
+              className="btn-clear"
+              disabled={isSubmitting}
+            >
               پاک‌سازی
             </button>
             <button
               type="button"
               onClick={() => setShowPreview(true)}
               className="btn-preview"
+              disabled={isSubmitting}
             >
               پیش‌نمایش
             </button>
-            <button type="submit" className="btn-submit">
-              انتشار و ثبت محتوا
+            <button
+              type="submit"
+              className="btn-submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "در حال ارسال..." : "انتشار و ثبت محتوا"}
             </button>
           </div>
         </form>
       </div>
 
-      {/* مودال پیش‌نمایش زنده */}
+      {/* مودال پیش‌نمایش */}
       {showPreview && (
         <div className="modal-overlay" onClick={() => setShowPreview(false)}>
           <div className="preview-modal" onClick={(e) => e.stopPropagation()}>
@@ -562,47 +745,35 @@ const ContentAddForm = ({ onSubmit }) => {
             </div>
 
             <div className="preview-modal-body" dir={previewLang === "fa" ? "rtl" : "ltr"}>
-              {imagePreviewUrl && (
-                <img src={imagePreviewUrl} alt="Banner" className="preview-img-banner" />
+              {previewLang === "fa" && imageFaPreview && (
+                <img src={imageFaPreview} alt="Banner FA" className="preview-img-banner" />
+              )}
+              {previewLang === "en" && imageEnPreview && (
+                <img src={imageEnPreview} alt="Banner EN" className="preview-img-banner" />
               )}
 
-              {/* نوار مشخصات دسته‌بندی و زمان انتشار */}
               <div className="preview-meta-row">
                 {data.category && (
                   <span className="preview-category-badge">
                     🏷️ {getCategoryLabel(data.category, previewLang)}
                   </span>
                 )}
-
-                <div className="preview-schedule-badge">
-                  🕒 {previewLang === "fa" ? "زمان انتشار:" : "Publish Time:"}{" "}
-                  {data.startDateTime ? data.startDateTime.replace("T", " ") : "---"}
-                </div>
               </div>
 
-              <h1 className="preview-main-title">
-                {previewLang === "fa"
-                  ? data.titleFa || "(بدون عنوان)"
-                  : data.titleEn || "(Untitled Content)"}
-              </h1>
+              <h1 className="preview-main-title">{data.title || "(بدون عنوان)"}</h1>
 
-              {/* خلاصه */}
               {(data.summaryFa || data.summaryEn) && (
-                <div
-                  className={`preview-summary-box ${previewLang === "en" ? "ltr" : ""}`}
-                >
+                <div className={`preview-summary-box ${previewLang === "en" ? "ltr" : ""}`}>
                   {previewLang === "fa" ? data.summaryFa : data.summaryEn}
                 </div>
               )}
 
-              {/* متن کامل */}
               <div className="preview-content-body">
                 {previewLang === "fa"
-                  ? data.descriptionFa || "متنی وارد نشده است."
-                  : data.descriptionEn || "No English text provided."}
+                  ? data.bodyFa || "متنی وارد نشده است."
+                  : data.bodyEn || "No English text provided."}
               </div>
 
-              {/* کلمات کلیدی */}
               <div className="tags-container" style={{ marginTop: 24 }}>
                 {(previewLang === "fa" ? keywordsFa : keywordsEn).map((tag) => (
                   <span key={tag} className="tag-badge">

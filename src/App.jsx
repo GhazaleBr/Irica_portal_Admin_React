@@ -35,7 +35,7 @@ function App() {
       <Header
         theme={theme}
         onToggleTheme={toggleTheme}
-        userName="رضا محمدی"
+        
       />
 
       <div className="main-wrapper">
