@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import getNews from '../../services/getNewsService';
+import { useNavigate } from 'react-router-dom';
+import { getNews } from '../../services/getNewsService';
 import './NewsSearchModal.css';
 
-export default function NewsSearchModal({ show, onHide, onSelectNews }) {
+export default function NewsSearchModal({ show = true, onHide, onSelectNews }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  // بستن یا بازگشت به مسیر قبلی
+  const handleClose = () => {
+    if (onHide) {
+      onHide();
+    } else {
+      navigate(-1); // بازگشت به صفحه قبل (داشبورد)
+    }
+  };
 
   // تابع فراخوانی API
   const fetchNews = async (searchTerm = '') => {
@@ -15,10 +26,8 @@ export default function NewsSearchModal({ show, onHide, onSelectNews }) {
       const data = await getNews({
         Search: searchTerm,
         Page: 1,
-        PageSize: 5, // نمایش ۵ خبر اول
+        PageSize: 5,
       });
-
-      // خروجی مستقیم از کلید items خوانده می‌شود
       setResults(data?.items || []);
     } catch (error) {
       console.error('خطا در بارگذاری اخبار:', error);
@@ -28,7 +37,7 @@ export default function NewsSearchModal({ show, onHide, onSelectNews }) {
     }
   };
 
-  // بارگذاری ۵ خبر اول به محض باز شدن مودال
+  // بارگذاری داده‌ها در ابتدای لود
   useEffect(() => {
     if (show) {
       setQuery('');
@@ -37,26 +46,33 @@ export default function NewsSearchModal({ show, onHide, onSelectNews }) {
     }
   }, [show]);
 
-  // هندل کردن فرم جستجو
-  const handleSearch = (e) => {
-    e.preventDefault();
-    setSearched(true);
-    fetchNews(query.trim());
+  // انتخاب یک خبر برای ویرایش
+  const handleSelect = (news) => {
+    if (onSelectNews) {
+      onSelectNews(news);
+    } else {
+      // هدایت به صفحه ویرایش با شناسه خبر
+      navigate(`/addnews/edit/${news.id}`, { state: { news } });
+    }
   };
 
   if (!show) return null;
 
   return (
-    <div className="nsm-overlay" onClick={onHide}>
+    <div className="nsm-overlay" onClick={handleClose}>
       <div className="nsm-modal" onClick={(e) => e.stopPropagation()}>
         <div className="nsm-header">
-          <h5 className="nsm-title">جستجو در اخبار</h5>
-          <button type="button" className="nsm-close" onClick={onHide} aria-label="بستن">
+          <h5 className="nsm-title">جستجو و انتخاب خبر جهت ویرایش</h5>
+          <button type="button" className="nsm-close" onClick={handleClose} aria-label="بستن">
             ×
           </button>
         </div>
 
-        <form className="nsm-search-form" onSubmit={handleSearch}>
+        <form className="nsm-search-form" onSubmit={(e) => {
+          e.preventDefault();
+          setSearched(true);
+          fetchNews(query.trim());
+        }}>
           <input
             type="text"
             className="nsm-input"
@@ -84,10 +100,7 @@ export default function NewsSearchModal({ show, onHide, onSelectNews }) {
                 key={news.id}
                 type="button"
                 className="nsm-item"
-                onClick={() => {
-                  onSelectNews(news);
-                  onHide();
-                }}
+                onClick={() => handleSelect(news)}
               >
                 <span>{news.title}</span>
                 {news.publishDate && (
@@ -100,7 +113,7 @@ export default function NewsSearchModal({ show, onHide, onSelectNews }) {
         </div>
 
         <div className="nsm-footer">
-          <button type="button" className="nsm-btn-close" onClick={onHide}>
+          <button type="button" className="nsm-btn-close" onClick={handleClose}>
             بستن
           </button>
         </div>

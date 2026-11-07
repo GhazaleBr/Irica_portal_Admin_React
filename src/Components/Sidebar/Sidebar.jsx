@@ -79,7 +79,7 @@ export default function Sidebar({ onSelect }) {
   };
 
   return (
-    <aside className="customs-sidebar">
+    <aside className="customs-sidebar" >
       {menuItems.map((item) => {
         const isOpen = !!openSubmenus[item.id];
         const isDashboard = item.isDashboard;

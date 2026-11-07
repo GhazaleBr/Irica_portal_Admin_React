@@ -1,0 +1,225 @@
+/* متغیرها و فونت پایه */
+.news-cards-page {
+  font-family: 'IRANSansWeb', 'B Yekan', Tahoma, sans-serif;
+  direction: rtl;
+  text-align: right;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;        /* وسط‌چین افقی */
+  justify-content: flex-start; /* قرارگیری در بالای صفحه */
+  padding-top: 48px;          /* فاصله دلپذیر از سقف صفحه */
+  padding-right: 24px;
+  padding-left: 24px;
+  padding-bottom: 24px;
+  background-color: #f7f9fc;
+  box-sizing: border-box;
+}
+
+.news-cards-page *,
+.news-cards-page *::before,
+.news-cards-page *::after {
+  box-sizing: inherit;
+}
+
+/* شبکه قرارگیری دو کارت در بالای صفحه (وسط چین) */
+.news-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 340px);
+  gap: 24px;
+  justify-content: center;
+  width: 100%;
+  max-width: 720px;
+}
+
+@media (max-width: 740px) {
+  .news-cards-grid {
+    grid-template-columns: 1fr;
+    max-width: 360px;
+  }
+}
+
+/* ساختار کارت‌های اصلی */
+.news-main-card {
+  background-color: #ffffff;
+  border-radius: 18px;
+  padding: 22px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border: 1px solid #edf0f5;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  position: relative;
+}
+
+.news-main-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
+  border-color: #f6c343;
+}
+
+/* هدر کارت */
+.news-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.news-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1e24;
+  margin: 0 0 6px 0;
+}
+
+.news-card-desc {
+  font-size: 0.85rem;
+  color: #7a828e;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* آیکون دایره‌ای */
+.news-icon-circle {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  background-color: #fff9e6;
+  color: #dca314;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* فوتر کارت و دکمه مشاهده جزئیات */
+.news-card-bottom {
+  margin-top: 18px;
+}
+
+.news-action-btn {
+  background: none;
+  border: none;
+  color: #dca314;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  transition: color 0.2s ease, gap 0.2s ease;
+}
+
+.news-action-btn:hover {
+  color: #b58307;
+  gap: 12px;
+}
+
+/* مودال */
+.news-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(18, 24, 38, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.news-modal-content {
+  background: #ffffff;
+  width: 100%;
+  max-width: 540px;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  animation: modalEnter 0.25s ease-out;
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.news-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f1f3f7;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.news-modal-header h4 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1a1e24;
+}
+
+.news-close-x {
+  background: none;
+  border: none;
+  color: #9aa1ad;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.news-close-x:hover {
+  background-color: #f1f3f7;
+  color: #1a1e24;
+}
+
+.news-modal-body {
+  color: #555e6d;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.news-modal-footer {
+  margin-top: 24px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.news-btn-close {
+  background-color: #eaedf2;
+  color: #3b424f;
+  border: none;
+  padding: 8px 22px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.2s;
+}
+
+.news-btn-close:hover {
+  background-color: #dde2e9;
+}
+.news-action-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* سایر استایل‌های قبلی */
+}

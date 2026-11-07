@@ -1051,14 +1051,14 @@ const AddNewsForm = () => {
                 </div>
 
                 <div className="action-buttons">
-                  {/* دکمه ویرایش که پاپ‌آپ جستجو را باز می‌کند */}
+                  {/* دکمه ویرایش که پاپ‌آپ جستجو را باز می‌کند 
                   <button
                     type="button"
                     className="btn btn-preview"
                     onClick={() => setIsEditSearchOpen(true)}
                   >
                     ویرایش
-                  </button>
+                  </button>*/}
 
                   <button
                     type="button"

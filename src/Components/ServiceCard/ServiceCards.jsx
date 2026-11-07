@@ -11,7 +11,7 @@ import './ServiceCards.css';
 const servicesData = [
   {
     id: 11,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج خبر',
     desc: 'مشاهده آخرین اخبار',
     icon: <FileCheck size={20} />,
@@ -20,7 +20,7 @@ const servicesData = [
 
   {
     id: 12,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج بخشنامه',
     desc: 'ثبت خبر جدید در سامانه',
     icon: <SearchCheck size={20} />,
@@ -28,7 +28,7 @@ const servicesData = [
   },
   {
     id: 13,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج قرارداد',
     desc: 'ثبت و تنظیم قراردادهای جدید',
     icon: <SearchCheck size={20} />,
@@ -36,7 +36,7 @@ const servicesData = [
   },
   {
     id: 14,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج محتوا',
     desc: 'بارگذاری بخشنامه‌های جدید',
     icon: <SearchCheck size={20} />,
@@ -44,7 +44,7 @@ const servicesData = [
   },
   {
     id: 15,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج طبقه بندی',
     desc: 'درج طبقه بندی',
     icon: <SearchCheck size={20} />,
@@ -52,7 +52,7 @@ const servicesData = [
   },
     {
     id: 16,
-    category: 'services',
+    category: 'dashboard',
     title: 'درج بنر',
     desc: 'درج بنر ویژه خبری',
     icon: <SearchCheck size={20} />,

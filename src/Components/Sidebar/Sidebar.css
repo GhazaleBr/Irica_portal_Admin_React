@@ -1,7 +1,7 @@
 :root {
   --primary-gold: #ce8b0d;
   --primary-gold-hover: #b87005;
-  --bg-sidebar: #ce8b0d; /* پس‌زمینه طلایی/کاهی پررنگ‌تر */
+  --bg-sidebar: #ce8b0d !important; /* پس‌زمینه طلایی/کاهی پررنگ‌تر */
   --bg-hover: #fcf5e5; 
   --text-main: #334155;
   --text-muted: #64748b;
@@ -10,7 +10,7 @@
 }
 
 [data-theme="dark"] {
-  --bg-sidebar: #12100c !important; /* پس‌زمینه تیره با ته¬رنگ کهربایی */
+  --bg-sidebar: #12100c !important; /* پس‌زمینه تیره با  کهربایی */
   --text-main: #f1f5f9;
   --text-muted: #94a3b8;
   --border-color: #261f0d;
@@ -21,7 +21,7 @@
 .customs-sidebar {
   width: 240px;
   min-height: calc(100vh - 64px);
-  background-color: var(--bg-sidebar) !important; /* اعمال اجباری پس‌زمینه */
+  background-color: #f7c05a !important; /* رنگ طلایی پیش‌فرض روز */
   padding: 16px 12px;
   direction: rtl;
   font-family: 'IRANSansWeb', 'B Yekan', Tahoma, sans-serif;
@@ -32,6 +32,11 @@
   gap: 6px;
   transition: all 0.3s ease;
   user-select: none;
+}
+[data-theme="dark"] .customs-sidebar,
+[data-bs-theme="dark"] .customs-sidebar {
+  background-color: #12100c !important; /* رنگ تیره در شب */
+  border-left-color: #261f0d;
 }
 
 /* آیتم فعال با گرادینت طلایی */

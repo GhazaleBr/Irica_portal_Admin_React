@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sun, Moon, Bell, Menu, User, LogIn, ChevronDown, LogOut, Loader2 } from 'lucide-react';
-import { getUserInfo } from '../../services/getuserinfo'; // مسیر فایل سرویس
 import './Header.css';
 import CustomIcon from '../../assets/header icon/cust-text2.png';
 
@@ -12,28 +11,13 @@ export default function Header({
   iamLoginUrl = import.meta.env?.VITE_IAM_LOGIN_URL || 'https://iam.example.com/login',
   onMenuToggle,
   onNotificationClick,
+  token,
+  userData,
+  isLoadingUser,
+  onLogout,
+  onLoginSuccess,
 }) {
-  const [token, setToken] = useState(() => 
-    sessionStorage.getItem('token') || localStorage.getItem('token')
-  );
-
-  const [userData, setUserData] = useState(() => {
-    const saved = sessionStorage.getItem('userData');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [isLoadingUser, setIsLoadingUser] = useState(false);
-
-  // عملیات خروج
-  const handleLogout = () => {
-    sessionStorage.removeItem('token');
-    localStorage.removeItem('token');
-    sessionStorage.removeItem('userData');
-    setToken(null);
-    setUserData(null);
-  };
-
-  // ریدایرکت به درگاه لاگین
+  // ریدایرکت به درگاه IAM
   const handleLoginRedirect = () => {
     const currentOriginUrl = window.location.href.split('#')[0];
     const encodedReturnUrl = encodeURIComponent(currentOriginUrl);
@@ -41,35 +25,17 @@ export default function Header({
     window.location.href = `${iamLoginUrl}${separator}redirect_uri=${encodedReturnUrl}`;
   };
 
-  // دریافت اطلاعات با ساختار ارسالی سرور
-  const fetchUserProfile = async () => {
-    try {
-      setIsLoadingUser(true);
-      const data = await getUserInfo();
-      setUserData(data);
-      sessionStorage.setItem('userData', JSON.stringify(data));
-    } catch (error) {
-      console.error('خطا در دریافت اطلاعات کاربر:', error);
-    } finally {
-      setIsLoadingUser(false);
-    }
-  };
-
   useEffect(() => {
     const hash = window.location.hash;
-    let activeToken = token;
-
     // استخراج توکن از هش بازگشتی IAM
     if (hash && (hash.includes('access_token') || hash.includes('token'))) {
       const params = new URLSearchParams(hash.substring(1));
       const extractedToken = params.get('access_token') || params.get('token');
 
       if (extractedToken) {
-        activeToken = extractedToken;
-        sessionStorage.setItem('token', extractedToken);
-        setToken(extractedToken);
+        onLoginSuccess?.(extractedToken);
 
-        // حذف هش از URL
+        // حذف تمیز هش از آدرس مرورگر
         window.history.replaceState(
           null,
           '',
@@ -77,14 +43,9 @@ export default function Header({
         );
       }
     }
+  }, [onLoginSuccess]);
 
-    // اگر توکن هست ولی دیتا نداریم، فراخوانی API
-    if (activeToken && !userData) {
-      fetchUserProfile();
-    }
-  }, [token]);
-
-  // نمایش نام کاربر منطبق با ساختار API
+  // نمایش نام کاربر
   const getDisplayName = () => {
     if (!userData) return '';
     return userData.fullName || userData.mobile || userData.nationalCode || 'کاربر سامانه';
@@ -156,7 +117,7 @@ export default function Header({
             <button
               type="button"
               className="header-icon-btn"
-              onClick={handleLogout}
+              onClick={onLogout}
               title="خروج از سامانه"
             >
               <LogOut size={18} />
