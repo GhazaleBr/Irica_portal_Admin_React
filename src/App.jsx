@@ -12,9 +12,11 @@ import CategoryManager from './Components/CategoryManager/CategoryManager';
 import BannerCustomizer from './Components/BannerManager/BannerCustomizer';
 import ProtectedRoute from './Components/Auth/ProtectedRoute'; // <-- ایمپورت کامپوننت محافظت
 import { getUserInfo } from './services/getuserinfo';
-import { LogIn, ShieldAlert } from 'lucide-react';
+import { Car, LogIn, ShieldAlert } from 'lucide-react';
 import NewsManagerModal from './Components/News/NewsManagerModal';
 import NewsSearchModal from './Components/News/NewsSearchModal';
+import LawsSection from './Components/Laws/LawsManager';
+import Card from './Components/ManageCard/Card';
 import './App.css';
 
 const IAM_LOGIN_URL = import.meta.env?.VITE_IAM_LOGIN_URL || 'https://iam.example.com/login';
@@ -97,6 +99,38 @@ function App() {
     console.log('کارت انتخاب شده:', card.title);
   };
 
+    const [activeModal, setActiveModal] = useState(null);
+
+  const newsCardsData = [
+    {
+      title: 'درج خبر',
+      description: 'ثبت و ایجاد خبر جدید در سامانه',
+      to: '/addnews/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش خبر',
+      description: 'ویرایش، به‌روزرسانی و مدیریت اخبار ثبت‌شده',
+      to: '/addnews/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
+    const lawsCardsData = [
+    {
+      title: 'درج بخشنامه',
+      description: 'ثبت و ایجاد بخشنامه جدید در سامانه',
+      to: '/addlaws/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش بخشنامه',
+      description: 'ویرایش، به‌روزرسانی و مدیریت بخشنامه ثبت‌شده',
+      to: '/addlaws/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
   const isAuthenticated = Boolean(token);
 
   return (
@@ -160,7 +194,11 @@ function App() {
                   userData={userData}
                   //allowedRoles={['admin', 'news_editor']}
                 >
-                  <NewsManagerModal />
+                  <Card 
+                     cards={newsCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                  />
                 </ProtectedRoute>
               }
             />
@@ -201,7 +239,11 @@ function App() {
                   userData={userData}
                   //allowedRoles={['admin', 'legal_expert']}
                 >
-                  <DirectiveAddForm />
+                <Card 
+                     cards={lawsCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                />
                 </ProtectedRoute>
               }
             />
