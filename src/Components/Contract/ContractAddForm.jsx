@@ -254,13 +254,13 @@ const ContractAddForm = ({ onSubmit }) => {
   );
 
   const buildApiPayload = () => ({
-    deactivateAt: null,
+    deactivateAt: new Date().toISOString(),
     titleFa: payload.titleFa,
     titleEn: payload.titleEn,
     companyNameFa: payload.companyFa,
     companyNameEn: payload.companyEn,
-    unitId: "",
-    trackingCode: "",
+    unitId: "واحد تعرفه",
+    trackingCode: "سبسب",
     startDate: payload.startDate,
     endDate: payload.endDate,
     amount: payload.amount,
@@ -272,7 +272,6 @@ const ContractAddForm = ({ onSubmit }) => {
     provinceId: 0,
   });
 
-  // تابع اصلی ارسال به سرور
   const executeSubmit = async () => {
     setIsSubmitting(true);
     const apiPayload = buildApiPayload();
@@ -303,7 +302,6 @@ const ContractAddForm = ({ onSubmit }) => {
     }
   };
 
-  // رویداد کلیک روی دکمه ثبت نهایی (نمایش Toast تاییدیه)
   const handleSubmitClick = (event) => {
     event.preventDefault();
 
@@ -313,7 +311,6 @@ const ContractAddForm = ({ onSubmit }) => {
       return;
     }
 
-    // نمایش Toast تاییدیه سفارشی
     toast.info(
       ({ closeToast }) => (
         <div style={{ textAlign: "right", fontFamily: "inherit" }}>
@@ -428,6 +425,7 @@ const ContractAddForm = ({ onSubmit }) => {
         </header>
 
         <form onSubmit={handleSubmitClick} className="contract-form" noValidate>
+          {/* بقیه فرم بدون تغییر حفظ شده است */}
           <div className="form-group">
             <div className="field-label-row">
               <label className="field-label">

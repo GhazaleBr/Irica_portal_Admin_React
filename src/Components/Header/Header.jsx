@@ -74,7 +74,7 @@ export default function Header({
 
         <div className="header-titles">
           <span className="header-main-title">گمرک جمهوری اسلامی ایران</span>
-          <span className="header-sub-title">سامانه جامع امور گمرکی</span>
+          <span className="header-sub-title">سامانه مدیریت پورتال</span>
         </div>
       </div>
 

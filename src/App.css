@@ -307,3 +307,14 @@
   transition: background-color 0.3s ease;
 }
 
+.auth-card-container {
+  display: flex;
+  justify-content: center; /* وسط‌چین افقی */
+  align-items: center;     /* وسط‌چین عمودی */
+  min-height: calc(100vh - 120px); /* با کسر تقریبی ارتفاع هدر/فوتر کل فضا را پر می‌کند */
+  width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+

@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { toJpeg, toSvg} from "html-to-image";
+import { uploadMedia } from "../../services/mediaService"; 
 import "./BannerCustomizer.css";
 import banner from "../../assets/img/app9.svg";
 
@@ -25,7 +26,7 @@ const DEFAULT_POSITIONS = {
   },
 };
 
-const BannerCustomizer = ({ onSave }) => {
+const BannerCustomizer = ({ onSave, mediaModel }) => {
   const previewRef = useRef(null);
   const dragRef = useRef(null);
 
@@ -42,6 +43,10 @@ const BannerCustomizer = ({ onSave }) => {
 
   const [dragging, setDragging] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+const [uploadProgress, setUploadProgress] = useState(0);
+const [uploadResult, setUploadResult] = useState(null);
+const [uploadError, setUploadError] = useState("");
 
   /*
    * محدود کردن مقدار بین حداقل و حداکثر
@@ -332,6 +337,88 @@ const BannerCustomizer = ({ onSave }) => {
     }
   };
 
+  const handleUploadToServer = async () => {
+  if (!previewRef.current || isUploading || isExporting) return;
+
+  setUploadError("");
+  setUploadResult(null);
+  setUploadProgress(0);
+
+  try {
+    if (!mediaModel) {
+      throw new Error("مقدار mediaModel برای درخواست مشخص نشده است.");
+    }
+
+    const title = bannerContent.title.trim();
+    const description = bannerContent.description.trim();
+
+    if (!title) {
+      throw new Error("عنوان بنر الزامی است.");
+    }
+
+    if (title.length > 200) {
+      throw new Error("عنوان بنر نباید بیشتر از ۲۰۰ کاراکتر باشد.");
+    }
+
+    if (description.length > 500) {
+      throw new Error("توضیحات بنر نباید بیشتر از ۵۰۰ کاراکتر باشد.");
+    }
+
+    setIsUploading(true);
+
+    const imageJpeg = await toJpeg(previewRef.current, {
+      quality: 0.95,
+      backgroundColor: "#ffffff",
+      pixelRatio: 2,
+      filter: (node) => !node.classList?.contains("drag-help-text"),
+    });
+
+    const blob = await fetch(imageJpeg).then((response) => response.blob());
+
+    if (blob.size > 50 * 1024 * 1024) {
+      throw new Error("حجم تصویر از سقف مجاز ۵۰ مگابایت بیشتر است.");
+    }
+
+    const file = new File(
+      [blob],
+      `custom-banner-${Date.now()}.jpeg`,
+      { type: "image/jpeg" }
+    );
+
+    const result = await uploadMedia({
+      model: mediaModel,
+      file,
+      title,
+      description,
+      imageTypeId: 2,
+      onUploadProgress: setUploadProgress,
+    });
+
+    setUploadResult(result);
+
+    if (typeof onSave === "function") {
+      onSave({
+        imageJpeg,
+        title,
+        description,
+        positions,
+        uploadResponse: result,
+      });
+    }
+  } catch (error) {
+    console.error("خطا در آپلود بنر:", error);
+
+    setUploadError(
+      error.response?.data?.message ||
+        error.message ||
+        "آپلود بنر انجام نشد."
+    );
+  } finally {
+    setIsUploading(false);
+  }
+};
+
+
 
   return (
     <div className="banner-page" dir="rtl">
@@ -554,6 +641,26 @@ const BannerCustomizer = ({ onSave }) => {
             >
               {isExporting ? "در حال پردازش..." : "دانلود بنر (SVG)"}
             </button>
+
+                          <button
+                type="button"
+                onClick={handleUploadToServer}
+                className="btn-submit"
+                disabled={isUploading || isExporting}
+              >
+                {isUploading
+                  ? uploadProgress > 0
+                    ? `در حال آپلود: ${uploadProgress}٪`
+                    : "در حال آماده‌سازی بنر..."
+                  : "ذخیره بنر در سرور"}
+              </button>
+
+              {uploadResult && (
+                <p role="status">بنر با موفقیت در سرور ذخیره شد.</p>
+              )}
+
+
+
 
           </div>
         </div>

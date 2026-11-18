@@ -50,6 +50,42 @@ const ContentAddForm = ({ onSuccess }) => {
   const [showPreview, setShowPreview] = useState(false);
   const [previewLang, setPreviewLang] = useState("fa");
 
+
+  // در کنار سایر Stateها اضافه کنید:
+const [attachments, setAttachments] = useState([]); // لیست فایل‌های ضمیمه
+const attachmentsInputRef = useRef(null);
+
+// تابع مدیریت آپلود فایل‌های ضمیمه
+const handleAttachmentChange = (e) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  const validFiles = [];
+  const errorsList = [];
+
+  files.forEach((file) => {
+    // محدودیت حجم (مثلاً حداکثر ۲۰ مگابایت برای هر فایل)
+    if (file.size > 20 * 1024 * 1024) {
+      errorsList.setItem(`حجم فایل ${file.name} بیشتر از ۲۰ مگابایت است.`);
+      return;
+    }
+    validFiles.push(file);
+  });
+
+  if (errorsList.length > 0) {
+    toast.error(errorsList[0]);
+  }
+
+  setAttachments((prev) => [...prev, ...validFiles]);
+  if (attachmentsInputRef.current) attachmentsInputRef.current.value = "";
+};
+
+// تابع حذف فایل ضمیمه
+const handleRemoveAttachment = (indexToRemove) => {
+  setAttachments((prev) => prev.filter((_, index) => index !== indexToRemove));
+};
+
+
   // زبان فعال برای فیلدهای دوزبانه
   const [activeLang, setActiveLang] = useState({
     summary: "fa",
@@ -195,6 +231,34 @@ const ContentAddForm = ({ onSuccess }) => {
     try {
       setIsSubmitting(true);
 
+      let faImageId = data.imageFaId;
+      let enImageId = data.imageEnId;
+      let attachmentIds = [];
+
+      // ۱. آپلود تصویر فارسی (در صورت انتخاب فایل جدید)
+      if (imageFaFile) {
+        const resFa = await contentService.uploadMediaImage(imageFaFile, `${data.title} - FA`, "contents");
+        faImageId = resFa?.id || resFa?.data?.id || 0; // بر اساس ساختار خروجی پاسخ API شما
+      }
+
+      // ۲. آپلود تصویر انگلیسی (در صورت انتخاب فایل جدید)
+      if (imageEnFile) {
+        const resEn = await contentService.uploadMediaImage(imageEnFile, `${data.title} - EN`, "contents");
+        enImageId = resEn?.id || resEn?.data?.id || 0;
+      }
+
+      // ۳. آپلود فایل‌های ضمیمه (با imageTypeId = 0 خودکار درون تابع سرویس)
+      if (attachments && attachments.length > 0) {
+        for (const file of attachments) {
+          const resAttach = await contentService.uploadMediaImage(file, file.name, "contents");
+          const attachId = resAttach?.id || resAttach?.data?.id;
+          if (attachId) {
+            attachmentIds.push(attachId);
+          }
+        }
+      }
+
+      // ۴. ساخت فرم‌دیتای نهایی یا ارسال مستقیم شیء JSON (بسته به پیاده‌سازی contentService)
       const formData = new FormData();
       formData.append("category", data.category);
       formData.append("title", data.title.trim());
@@ -215,8 +279,14 @@ const ContentAddForm = ({ onSuccess }) => {
       formData.append("provinceId", data.provinceId);
       formData.append("deactivateAt", new Date().toISOString());
 
-      if (imageFaFile) formData.append("imageFa", imageFaFile);
-      if (imageEnFile) formData.append("imageEn", imageEnFile);
+      // ارسال شناسه‌های تصاویر و ضمیمه‌ها به جای فایل خام
+      formData.append("imageFaId", faImageId);
+      formData.append("imageEnId", enImageId);
+      
+      // اگر بک‌اند ضمیمه‌ها را به شکل آرایه یا رشته‌ای از IDها می‌خواهد:
+      attachmentIds.forEach((id, index) => {
+        formData.append(`attachmentIds[${index}]`, id);
+      });
 
       const result = await contentService.manageContents(formData);
 
@@ -238,6 +308,7 @@ const ContentAddForm = ({ onSuccess }) => {
       setIsSubmitting(false);
     }
   };
+
 
   // تأییدیه با react-toastify
   const handleSubmit = (e) => {
@@ -617,6 +688,85 @@ const ContentAddForm = ({ onSuccess }) => {
               </>
             )}
           </div>
+
+          {/* بخش آپلود فایل‌های ضمیمه */}
+<div className="form-group">
+  <label className="field-label">
+    فایل‌های ضمیمه و اسناد پشتیبان (PDF, Excel, Word, ZIP)
+  </label>
+  
+  <input
+    type="file"
+    ref={attachmentsInputRef}
+    multiple
+    accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar"
+    style={{ display: "none" }}
+    onChange={handleAttachmentChange}
+    disabled={isSubmitting}
+  />
+
+  <div
+    className="image-upload-box"
+    style={{ borderStyle: "dashed", padding: "20px", textAlign: "center" }}
+    onClick={() => !isSubmitting && attachmentsInputRef.current?.click()}
+  >
+    <div style={{ fontSize: 24, marginBottom: 4 }}>📎</div>
+    <div style={{ fontSize: 13, fontWeight: 700 }}>کلیک جهت انتخاب و آپلود فایل‌های ضمیمه</div>
+    <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+      امکان انتخاب چند فایل هم‌زمان (حداکثر حجم هر فایل: ۲۰ مگابایت)
+    </div>
+  </div>
+
+  {/* لیست فایل‌های انتخاب شده */}
+  {attachments.length > 0 && (
+    <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+      {attachments.map((file, index) => (
+        <div
+          key={index}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            padding: "8px 12px",
+            borderRadius: "6px",
+            fontSize: "13px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span>📄</span>
+            <span style={{ fontWeight: 600, color: "#334155" }}>{file.name}</span>
+            <span style={{ color: "#64748b", fontSize: "11px" }}>
+              ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleRemoveAttachment(index)}
+            disabled={isSubmitting}
+            style={{
+              background: "#fee2e2",
+              color: "#dc2626",
+              border: "none",
+              borderRadius: "4px",
+              width: "24px",
+              height: "24px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 700,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
+
 
           {/* تنظیمات زمان‌بندی */}
           <div className="form-group" style={{ background: "#f8fafc", padding: "16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>

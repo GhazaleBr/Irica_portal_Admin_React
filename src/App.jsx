@@ -10,13 +10,17 @@ import ContentAddForm from './Components/Content/ContentAddForm';
 import UserProfile from './Components/UserProfile/UserProfile';
 import CategoryManager from './Components/CategoryManager/CategoryManager';
 import BannerCustomizer from './Components/BannerManager/BannerCustomizer';
-import ProtectedRoute from './Components/Auth/ProtectedRoute'; // <-- ایمپورت کامپوننت محافظت
+import ProtectedRoute from './Components/Auth/ProtectedRoute'; 
 import { getUserInfo } from './services/getuserinfo';
 import { Car, LogIn, ShieldAlert } from 'lucide-react';
 import NewsManagerModal from './Components/News/NewsManagerModal';
 import NewsSearchModal from './Components/News/NewsSearchModal';
 import LawsSection from './Components/Laws/LawsManager';
+import CreateSubPortal from './Components/SubPortal/CreateSubPortal';
 import Card from './Components/ManageCard/Card';
+import IamLoginPrompt from './Components/Auth/IamLoginPrompt';
+import MediaUploader from './Components/Media/MediaUploader';
+import TenderForm from './Components/Tender/TenderForm';
 import './App.css';
 
 const IAM_LOGIN_URL = import.meta.env?.VITE_IAM_LOGIN_URL || 'https://iam.example.com/login';
@@ -99,6 +103,11 @@ function App() {
     console.log('کارت انتخاب شده:', card.title);
   };
 
+    const handleFilesChange = (files) => {
+    console.log('فایل‌های آماده ارسال:', files);
+    // برای ارسال به سرور می‌توانید از FormData استفاده کنید
+  };
+
     const [activeModal, setActiveModal] = useState(null);
 
   const newsCardsData = [
@@ -131,6 +140,97 @@ function App() {
     }
   ];
 
+  const contractCardsData = [
+    {
+      title: 'درج قرارداد',
+      description: 'ثبت و ایجاد قرارداد جدید در سامانه',
+      to: '/addcontract/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش قرارداد',
+      description: 'ویرایش، به‌روزرسانی و مدیریت قرارداد ثبت‌شده',
+      to: '/addcontract/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
+    const contentCardsData = [
+    {
+      title: 'درج محتوا',
+      description: 'ثبت و ایجاد محتوا جدید در سامانه',
+      to: '/addcontent/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش محتوا',
+      description: 'ویرایش، به‌روزرسانی و مدیریت قرارداد ثبت‌شده',
+      to: '/addcontent/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+  //createcategory
+
+  const categoryCardsData = [
+    {
+      title: 'درج طبقه‌بندی',
+      description: 'ثبت و ایجاد طبقه‌بندی جدید در سامانه',
+      to: '/addcategory/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش طبقه‌بندی',
+      description: 'ویرایش، به‌روزرسانی و مدیریت طبقه‌بندی ثبت‌شده',
+      to: '/addcategory/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+    const formCardsData = [
+    {
+      title: 'درج فرم',
+      description: 'ثبت و ایجاد فرم جدید در سامانه',
+      to: '/addform/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش فرم',
+      description: 'ویرایش، به‌روزرسانی و مدیریت فرم ثبت‌شده',
+      to: '/addform/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
+  const MediaCardsData = [
+    {
+      title: 'درج چندرسانه‌ای',
+      description: 'ثبت و ایجاد چندرسانه‌ای جدید در سامانه',
+      to: '/uploadmedia/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش چندرسانه‌ای',
+      description: 'ویرایش، به‌روزرسانی و مدیریت چندرسانه‌ای ثبت‌شده',
+      to: '/uploadmedia/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
+    const tenderCardsData = [
+    {
+      title: 'درج مناقصه',
+      description: 'ثبت و ایجاد مناقصه جدید در سامانه',
+      to: '/tender/create',
+      type: 'create' // مشخص کننده آیکون درج
+    },
+    {
+      title: 'ویرایش مناقصه',
+      description: 'ویرایش، به‌روزرسانی و مدیریت مناقصه ثبت‌شده',
+      to: '/tender/edit',
+      type: 'edit' // مشخص کننده آیکون ویرایش
+    }
+  ];
+
+
   const isAuthenticated = Boolean(token);
 
   return (
@@ -147,42 +247,28 @@ function App() {
       />
 
       <div className="main-wrapper">
-        {/*<Sidebar onSelect={(menuId) => setSelectedMenu(menuId.split(':')[0])} />*/}
+          {isAuthenticated && (
+    <Sidebar onSelect={(menuId) => setSelectedMenu(menuId.split(':')[0])} />
+  )}
 
         <main className="content-area">
           <Routes>
             {/* صفحه پیش‌فرض / اصلی */}
-            <Route
-              path="/"
-              element={
-                isAuthenticated ? (
-                  <ServiceCards
-                    activeCategory={selectedMenu}
-                    onCardClick={handleCardClick}
-                  />
-                ) : (
-                  <div className="auth-card-container">
-                    <div className="auth-card">
-                      <div className="auth-icon-wrapper">
-                        <ShieldAlert size={48} className="auth-lock-icon" />
-                      </div>
-                      <h3>ورود به سامانه مدیریت پورتال گمرک</h3>
-                      <p>
-                        جهت مشاهده خدمات، لطفاً از طریق درگاه احراز هویت مرکزی وارد شوید.
-                      </p>
-                      <button
-                        type="button"
-                        className="btn-login-gateway"
-                        onClick={handleLoginRedirect}
-                      >
-                        <LogIn size={18} />
-                        <span>ورود از طریق درگاه مرکزی (IAM)</span>
-                      </button>
-                    </div>
-                  </div>
-                )
-              }
-            />
+<Route
+  path="/"
+  element={
+    isAuthenticated ? (
+      <ServiceCards
+        activeCategory={selectedMenu}
+        onCardClick={handleCardClick}
+      />
+    ) : (
+      <div className="auth-card-container">
+        <IamLoginPrompt onLoginRedirect={handleLoginRedirect} />
+      </div>
+    )
+  }
+/>
 
             {/* مسیرهای محافظت‌شده بر اساس توکن و نقش */}
             <Route
@@ -249,6 +335,20 @@ function App() {
             />
 
             <Route
+              path="/addlaws/create"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                  //allowedRoles={['admin', 'news_editor']}
+                >
+                  <DirectiveAddForm />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
               path="/addcontract"
               element={
                 <ProtectedRoute
@@ -256,6 +356,24 @@ function App() {
                   isLoadingUser={isLoadingUser}
                   userData={userData}
                  // allowedRoles={['admin', 'contract_manager']}
+                >
+                <Card 
+                     cards={contractCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/addcontract/create"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                  //allowedRoles={['admin', 'news_editor']}
                 >
                   <ContractAddForm />
                 </ProtectedRoute>
@@ -271,6 +389,25 @@ function App() {
                   userData={userData}
                   //allowedRoles={['admin', 'content_manager']}
                 >
+                <Card 
+                     cards={contentCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                />
+                  
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/addcontent/create"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                  //allowedRoles={['admin', 'news_editor']}
+                >
                   <ContentAddForm />
                 </ProtectedRoute>
               }
@@ -285,7 +422,11 @@ function App() {
                   userData={userData}
                   //allowedRoles={['admin']}
                 >
-                  <CategoryManager />
+                <Card 
+                     cards={categoryCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                />
                 </ProtectedRoute>
               }
             />
@@ -299,7 +440,47 @@ function App() {
                   userData={userData}
                   //allowedRoles={['admin']}
                 >
-                  <BannerCustomizer />
+                  <BannerCustomizer       mediaModel="/api/admin/media/upload/${mediaModel}"
+      onSave={(data) => console.log(data)}/>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/createsubportal"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                >
+                  <CreateSubPortal/>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/uploadmedia"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                >
+              
+                
+                <Card 
+                     cards={MediaCardsData} 
+                     activeModal={activeModal} 
+                     setActiveModal={setActiveModal} 
+                />
+                {/* <div style={{ padding: '24px' }}>
+                <MediaUploader
+                  maxSizeMB={25}
+                  maxFiles={8}
+                  onFilesChange={handleFilesChange}
+                />
+              </div>*/}
                 </ProtectedRoute>
               }
             />
@@ -314,6 +495,19 @@ function App() {
                   userData={userData}
                 >
                   <UserProfile />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/addtender"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                >
+                  <TenderForm />
                 </ProtectedRoute>
               }
             />

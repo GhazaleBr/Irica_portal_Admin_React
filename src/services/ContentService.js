@@ -100,4 +100,33 @@ export const contentService = {
     const response = await api.post(`admin/contents/related/${id}/deactivate`, payload);
     return response.data;
   },
+
+uploadMediaImage: async (fileObj, titleText, modelName = "contents") => {
+  const formData = new FormData();
+  const isImage = fileObj?.type?.startsWith("image/");
+
+  formData.append("file", fileObj);
+  formData.append(
+    "title",
+    titleText || (isImage ? "News Image" : "News Attachment")
+  );
+  formData.append(
+    "description",
+    isImage
+      ? "Uploaded from news panel"
+      : "Attachment uploaded from news panel"
+  );
+  formData.append("imageTypeId", isImage ? "2" : "0");
+
+  const response = await api.post(
+    `admin/media/upload/${modelName}`,
+    formData
+  );
+
+  return response.data;
+},
+
+  
+
+
 };

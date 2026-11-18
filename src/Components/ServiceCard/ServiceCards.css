@@ -231,3 +231,92 @@
   cursor: pointer;
 }
 
+/* کانتینر دکمه‌ها در پایین کارت */
+.card-bottom {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px; /* فاصله بین دو دکمه */
+  width: 100%;
+}
+
+/* یکسان‌سازی دقیق ابعاد و استایل مشترک هر دو دکمه */
+.details-btn,
+.edit-btn {
+  flex: 1; /* عرض کاملاً مساوی برای هر دو دکمه */
+  height: 38px; /* ارتفاع دقیق و یکسان */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-sizing: border-box;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+/* دکمه مشاهده با تم رنگی #c9800e */
+.details-btn {
+  color: #c9800e;
+  background-color: rgba(201, 128, 14, 0.08); /* پس‌زمینه محو هماهنگ */
+  border: 1px solid rgba(201, 128, 14, 0.25);
+}
+
+.details-btn:hover {
+  background-color: rgba(201, 128, 14, 0.15);
+  border-color: #c9800e;
+}
+
+/* دکمه ویرایش (سبک پررنگ‌تر یا دکمه اصلی بر پایه #c9800e) */
+.edit-btn {
+  color: #ffffff;
+  background-color: #c9800e;
+  border: 1px solid #c9800e;
+}
+
+.edit-btn:hover {
+  background-color: #b3710c; /* کمی تیره‌تر در هاور */
+  border-color: #b3710c;
+}
+.service-card-image {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  display: block;
+}
+.card-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+/* وضعیت پیش‌فرض: آیکون‌ها کاملاً دیده می‌شوند */
+.service-card .card-actions .icon-link {
+  opacity: 1;
+  visibility: visible;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  display: inline-block; /* برای اینکه transform به درستی اعمال شود */
+}
+
+/* وضعیت هاور: وقتی ماوس روی کارت است، آیکون‌ها بزرگ‌تر یا هایلایت می‌شوند */
+.service-card:hover .card-actions .icon-link {
+  transform: scale(1.1); /* آیکون‌ها ۱۰ درصد بزرگ‌تر می‌شوند */
+  opacity: 0.9;
+}
+
+/* تغییر رنگ یا افکت خاص برای آیکون‌های تکی (اختیاری) */
+.service-card:hover .details-icon {
+  filter: drop-shadow(0 0 5px rgba(0,0,0,0.2));
+}
+
+.service-card:hover .edit-icon {
+  filter: drop-shadow(0 0 5px rgba(0,0,0,0.2));
+}
+
+

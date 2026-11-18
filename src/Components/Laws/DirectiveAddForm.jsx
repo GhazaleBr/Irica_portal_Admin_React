@@ -207,7 +207,7 @@ const DirectiveAddForm = ({ onSubmit }) => {
           att.file,
           att.titleFa || att.name,
           att.description || "",
-          "law"
+          "laws"
         );
 
         const fileId = uploadRes?.fileId ?? uploadRes?.id ?? uploadRes?.data?.id ?? uploadRes?.data?.fileId;
