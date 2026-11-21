@@ -21,6 +21,7 @@ import Card from './Components/ManageCard/Card';
 import IamLoginPrompt from './Components/Auth/IamLoginPrompt';
 import MediaUploader from './Components/Media/MediaUploader';
 import TenderForm from './Components/Tender/TenderForm';
+import FormBuilder from './Components/Formbuilder/FormBuilder';
 import './App.css';
 
 const IAM_LOGIN_URL = import.meta.env?.VITE_IAM_LOGIN_URL || 'https://iam.example.com/login';
@@ -485,6 +486,26 @@ function App() {
               }
             />
 
+            <Route
+              path="/uploadmedia/create"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                >
+              
+                 <div style={{ padding: '24px' }}>
+                <MediaUploader
+                  maxSizeMB={25}
+                  maxFiles={8}
+                  onFilesChange={handleFilesChange}
+                />
+              </div>
+                </ProtectedRoute>
+              }
+            />
+
             {/* پروفایل کاربر فقط نیاز به لاگین بودن دارد و نقش خاصی نیاز ندارد */}
             <Route
               path="/userprofile"
@@ -508,6 +529,19 @@ function App() {
                   userData={userData}
                 >
                   <TenderForm />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/addform"
+              element={
+                <ProtectedRoute
+                  isAuthenticated={isAuthenticated}
+                  isLoadingUser={isLoadingUser}
+                  userData={userData}
+                >
+                  <FormBuilder />
                 </ProtectedRoute>
               }
             />

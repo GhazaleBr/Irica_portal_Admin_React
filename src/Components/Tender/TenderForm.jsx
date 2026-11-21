@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// TenderForm.jsx
+import React, { useEffect, useState } from 'react';
+import tenderService from '../../services/TenderService'; // مسیر را متناسب با پروژه تنظیم کنید
 import './TenderForm.css';
 
 const initialValues = {
@@ -47,17 +49,6 @@ const initialValues = {
   tenderModifiedId: 0,
 };
 
-const dateFields = [
-  'publishDate',
-  'editDate',
-  'mediaPublishDate',
-  'receivingDeadline',
-  'proposalDeadline',
-  'openingDate',
-  'scheduleStartDate',
-  'scheduleEndDate',
-];
-
 const numberFields = [
   'tenderTypeId',
   'entityStatusId',
@@ -70,14 +61,52 @@ const numberFields = [
   'tenderModifiedId',
 ];
 
-const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState(() => ({
-    ...initialValues,
-    ...initialData,
-    deactivateAt: initialData.deactivateAt
-      ? initialData.deactivateAt.slice(0, 16)
-      : '',
-  }));
+// مقدار ISO دریافتی از API را به زمان محلی مناسب datetime-local تبدیل می‌کند.
+const toLocalDateTime = (value) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const localDate = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000
+  );
+
+  return localDate.toISOString().slice(0, 16);
+};
+
+const buildFormData = (data) => {
+  const values = Object.fromEntries(
+    Object.keys(initialValues).map((key) => [
+      key,
+      data?.[key] ?? initialValues[key],
+    ])
+  );
+
+  values.deactivateAt = toLocalDateTime(data?.deactivateAt);
+  return values;
+};
+
+const TenderForm = ({
+  initialData = null,
+  tenderId,
+  onSubmit,
+  onCancel,
+}) => {
+  const [formData, setFormData] = useState(() => buildFormData(initialData));
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const id = tenderId ?? initialData?.id;
+  const isEdit = id !== undefined && id !== null && id !== '';
+
+  // اگر دادهٔ ویرایش پس از بارگذاری API به فرم برسد، فیلدها به‌روز می‌شوند.
+  useEffect(() => {
+    setFormData(buildFormData(initialData));
+    setErrorMessage('');
+    setSuccessMessage('');
+  }, [initialData]);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -88,13 +117,18 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
         type === 'checkbox'
           ? checked
           : numberFields.includes(name)
-            ? value === '' ? 0 : Number(value)
+            ? value === '' ? '' : Number(value)
             : value,
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    if (isSaving) return;
+
+    setIsSaving(true);
+    setErrorMessage('');
+    setSuccessMessage('');
 
     const payload = {
       ...formData,
@@ -103,11 +137,49 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
         : null,
     };
 
-    onSubmit?.(payload);
+    // ورودی عددیِ پاک‌شده را مطابق مقادیر اولیهٔ فرم به ۰ برمی‌گرداند.
+    numberFields.forEach((field) => {
+      payload[field] =
+        formData[field] === '' ? 0 : Number(formData[field]);
+    });
+
+    try {
+      const result = isEdit
+        ? await tenderService.updateTender(id, payload)
+        : await tenderService.createTender(payload);
+
+      setSuccessMessage(
+        isEdit
+          ? 'مناقصه با موفقیت ویرایش شد.'
+          : 'مناقصه با موفقیت ثبت شد.'
+      );
+
+      if (!isEdit) {
+        setFormData(buildFormData(null));
+      }
+
+      // callback اختیاری، پس از موفقیت API اجرا می‌شود.
+      onSubmit?.(result);
+    } catch (error) {
+      const serverMessage = error.response?.data?.message;
+
+      setErrorMessage(
+        typeof serverMessage === 'string'
+          ? serverMessage
+          : Array.isArray(serverMessage)
+            ? serverMessage.join('، ')
+            : error.message || 'ثبت اطلاعات انجام نشد.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const renderInput = (name, label, type = 'text', options = {}) => (
-    <label className={`tender-field ${options.full ? 'tender-field-full' : ''}`} key={name}>
+    <label
+      className={`tender-field ${options.full ? 'tender-field-full' : ''}`}
+      key={name}
+    >
       <span>{label}</span>
       <input
         name={name}
@@ -122,7 +194,10 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
   );
 
   const renderTextarea = (name, label, options = {}) => (
-    <label className={`tender-field ${options.full ? 'tender-field-full' : ''}`} key={name}>
+    <label
+      className={`tender-field ${options.full ? 'tender-field-full' : ''}`}
+      key={name}
+    >
       <span>{label}</span>
       <textarea
         name={name}
@@ -131,19 +206,6 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
         rows={options.rows || 4}
         dir={options.ltr ? 'ltr' : undefined}
       />
-    </label>
-  );
-
-  const renderSelect = (name, label, options) => (
-    <label className="tender-field" key={name}>
-      <span>{label}</span>
-      <select name={name} value={formData[name]} onChange={handleChange}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
     </label>
   );
 
@@ -163,10 +225,22 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
     <form className="tender-form" onSubmit={handleSubmit}>
       <header className="tender-form-header">
         <div>
-          <h1>ثبت مناقصه</h1>
+          <h1>{isEdit ? 'ویرایش مناقصه' : 'ثبت مناقصه'}</h1>
           <p>اطلاعات مناقصه را وارد کنید.</p>
         </div>
       </header>
+
+      {errorMessage && (
+        <div className="tender-form-error" role="alert">
+          {errorMessage}
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="tender-form-success" role="status">
+          {successMessage}
+        </div>
+      )}
 
       <section className="tender-form-section">
         <h2>اطلاعات اصلی</h2>
@@ -223,7 +297,9 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
         <h2>کلیدواژه‌ها و تصاویر</h2>
         <div className="tender-form-grid">
           {renderInput('keyWordsFa', 'کلیدواژه‌های فارسی')}
-          {renderInput('keyWordsEn', 'کلیدواژه‌های انگلیسی', 'text', { ltr: true })}
+          {renderInput('keyWordsEn', 'کلیدواژه‌های انگلیسی', 'text', {
+            ltr: true,
+          })}
           {renderInput('imageFaId', 'شناسه تصویر فارسی', 'number')}
           {renderInput('imageEnId', 'شناسه تصویر انگلیسی', 'number')}
         </div>
@@ -233,13 +309,20 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
         <h2>شرح و شرایط</h2>
         <div className="tender-form-grid">
           {renderTextarea('descriptionFa', 'شرح فارسی', { full: true })}
-          {renderTextarea('descriptionEn', 'شرح انگلیسی', { full: true, ltr: true })}
+          {renderTextarea('descriptionEn', 'شرح انگلیسی', {
+            full: true,
+            ltr: true,
+          })}
           {renderTextarea('guaranteeFa', 'تضمین فارسی')}
           {renderTextarea('guaranteeEn', 'تضمین انگلیسی', { ltr: true })}
           {renderTextarea('participantConditionsFa', 'شرایط شرکت‌کنندگان فارسی')}
-          {renderTextarea('participantConditionsEn', 'شرایط شرکت‌کنندگان انگلیسی', { ltr: true })}
+          {renderTextarea('participantConditionsEn', 'شرایط شرکت‌کنندگان انگلیسی', {
+            ltr: true,
+          })}
           {renderTextarea('documentConditionsFa', 'شرایط اسناد فارسی')}
-          {renderTextarea('documentConditionsEn', 'شرایط اسناد انگلیسی', { ltr: true })}
+          {renderTextarea('documentConditionsEn', 'شرایط اسناد انگلیسی', {
+            ltr: true,
+          })}
           {renderTextarea('winnerFa', 'برنده فارسی')}
           {renderTextarea('winnerEn', 'برنده انگلیسی', { ltr: true })}
         </div>
@@ -247,12 +330,26 @@ const TenderForm = ({ initialData = {}, onSubmit, onCancel }) => {
 
       <footer className="tender-form-actions">
         {onCancel && (
-          <button type="button" className="tender-button tender-button-secondary" onClick={onCancel}>
+          <button
+            type="button"
+            className="tender-button tender-button-secondary"
+            onClick={onCancel}
+            disabled={isSaving}
+          >
             انصراف
           </button>
         )}
-        <button type="submit" className="tender-button tender-button-primary">
-          ثبت مناقصه
+
+        <button
+          type="submit"
+          className="tender-button tender-button-primary"
+          disabled={isSaving}
+        >
+          {isSaving
+            ? 'در حال ارسال...'
+            : isEdit
+              ? 'ذخیره تغییرات'
+              : 'ثبت مناقصه'}
         </button>
       </footer>
     </form>
